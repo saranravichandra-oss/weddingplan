@@ -6,6 +6,7 @@ const testDataDirectory = resolve(`.test-data-browser-${Date.now()}`);
 export default defineConfig({
   testDir: "./tests",
   testMatch: "**/*.spec.ts",
+  testIgnore: "**/cloud/**",
   fullyParallel: false,
   workers: 1,
   globalTeardown: "./tests/teardown.mjs",

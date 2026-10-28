@@ -51,6 +51,11 @@ export type Offer = Stored & {
   extraHours: string;
   packageName: string;
   source: string;
+  eventDate: string;
+  venue: string;
+  guestCount: string;
+  photoPrice: number | null;
+  videoPrice: number | null;
   documentId: string | null;
   evidence: Evidence;
   manualFields: string[];
@@ -125,6 +130,7 @@ export type Analysis = {
   pages: { page: number; text: string; method: string; confidence?: number }[];
 };
 export type Document = {
+  uploaded?: boolean;
   id: string;
   name: string;
   mime: string;
@@ -136,6 +142,8 @@ export type Document = {
   analysis?: Analysis | null;
 };
 export type AppState = {
+  cloudMove?: { siteUrl: string; complete: boolean } | null;
+  hosting?: "local" | "cloud";
   tasks: Task[];
   providers: Provider[];
   offers: Offer[];
@@ -193,6 +201,11 @@ export const emptyOffer: Omit<Offer, keyof Stored> = {
   validity: "",
   extraHours: "",
   packageName: "",
+  eventDate: "",
+  venue: "",
+  guestCount: "",
+  photoPrice: null,
+  videoPrice: null,
   source: "",
   documentId: null,
   evidence: {},

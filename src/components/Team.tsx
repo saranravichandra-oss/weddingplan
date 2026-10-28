@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { cloudMode } from "../documents";
 import {
   Copy,
   DownloadSimple,
@@ -28,7 +29,11 @@ export default function Team({
     <>
       <Title
         title="Gemeinsam ist es euer Plan."
-        description="Zwei private Zugänge. Eine gemeinsame Planung auf eurem Rechner."
+        description={
+          cloudMode
+            ? "Zwei private Zugänge. Eine gemeinsame Planung, von überall erreichbar."
+            : "Zwei private Zugänge. Eine gemeinsame Planung auf eurem Rechner."
+        }
       />
       <div className="team-grid">
         <section className="panel team-card">
@@ -97,6 +102,27 @@ export default function Team({
                   >
                     <Copy /> Code kopieren
                   </Button>
+                  {cloudMode && (
+                    <Button
+                      secondary
+                      onClick={async () => {
+                        const link =
+                          state.network[0] +
+                          "/#invite=" +
+                          encodeURIComponent(invite);
+                        try {
+                          await navigator.clipboard.writeText(link);
+                          setMessage("Einladungslink kopiert.");
+                        } catch {
+                          setMessage(
+                            "Bitte die App-Adresse und den Code persönlich weitergeben.",
+                          );
+                        }
+                      }}
+                    >
+                      <Copy /> Einladungslink kopieren
+                    </Button>
+                  )}
                   <button
                     className="text-button"
                     onClick={async () => {
@@ -116,9 +142,9 @@ export default function Team({
         <section className="panel team-card">
           <Heading title="Auf dem zweiten Gerät öffnen" />
           <p>
-            Beide Geräte mit demselben vertrauenswürdigen Netzwerk verbinden.
-            Auf dem zweiten Gerät eine der folgenden Adressen öffnen und „Ich
-            habe einen Einladungscode“ wählen:
+            {cloudMode
+              ? "Diese Adresse funktioniert auch in einem anderen Netzwerk. Öffnet sie auf dem zweiten Gerät und wählt „Ich habe einen Einladungscode“, oder verwendet direkt den kopierten Einladungslink."
+              : "Beide Geräte mit demselben vertrauenswürdigen Netzwerk verbinden. Auf dem zweiten Gerät eine der folgenden Adressen öffnen und „Ich habe einen Einladungscode“ wählen:"}
           </p>
           {state.network.length ? (
             state.network.map((url) => (
@@ -135,10 +161,9 @@ export default function Team({
           <div className="inline-note">
             <Info />
             <span>
-              Dieser Rechner und die App müssen laufen. Die Adresse kann sich
-              nach einem Netzwerkwechsel ändern. Diese HTTP-Version ist für euer
-              privates Netzwerk gedacht; sie ist nicht öffentlich im Internet
-              bereitgestellt.
+              {cloudMode
+                ? "Euer Rechner muss dafür nicht laufen. Die gemeinsame Planung wird verschlüsselt über HTTPS geladen. Aktualisierungen erscheinen etwa alle 15 Sekunden sowie beim erneuten Öffnen der Seite."
+                : "Dieser Rechner und die App müssen laufen. Die Adresse kann sich nach einem Netzwerkwechsel ändern. Diese HTTP-Version ist für euer privates Netzwerk gedacht; sie ist nicht öffentlich im Internet bereitgestellt."}
             </span>
           </div>
         </section>
@@ -146,14 +171,21 @@ export default function Team({
           <Heading title="Daten & Kosten" />
           <Badge tone="success">Keine kostenpflichtigen API-Aufrufe</Badge>
           <p>
-            Die Auswertung läuft vollständig lokal. Ein eingerichteter
-            OpenAI-Schlüssel wird von dieser App nicht geladen oder verwendet.
+            {cloudMode
+              ? "PDF-Text und Texterkennung werden auf eurem Gerät verarbeitet. Originale und geprüfte Angaben werden privat in der Cloud gespeichert. OpenAI wird nicht verwendet."
+              : "Die Auswertung läuft vollständig lokal. Ein eingerichteter OpenAI-Schlüssel wird von dieser App nicht geladen oder verwendet."}
           </p>
           <p>
-            Planungsdaten und Originale liegen im privaten Ordner{" "}
-            <code>.wedding-data</code>. Der JSON-Export enthält eure Einträge
-            und Auswertungen; Originale separat herunterladen. Ein vollständiges
-            Backup erzeugt <code>npm run backup</code>.
+            {cloudMode ? (
+              "Vercel Hobby und Supabase Free sind ohne kostenpflichtiges Upgrade eingerichtet. Für Originale gilt ein App-Limit von 750 MB. Kostenlose Tarife haben Nutzungsgrenzen; bei längerer Inaktivität kann Supabase pausieren. Sichert eure Planung als JSON und ladet Originale separat herunter."
+            ) : (
+              <>
+                Planungsdaten und Originale liegen im privaten Ordner{" "}
+                <code>.wedding-data</code>. Der JSON-Export enthält eure
+                Einträge und Auswertungen; Originale separat herunterladen. Ein
+                vollständiges Backup erzeugt <code>npm run backup</code>.
+              </>
+            )}
           </p>
           <a href="/api/export" className="button secondary">
             <DownloadSimple size={18} /> Planung als JSON exportieren

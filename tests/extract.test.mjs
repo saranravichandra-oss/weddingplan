@@ -54,3 +54,62 @@ test("percentage deposits stay payment terms, and excluded VAT is not gross", ()
   assert.equal(result.fields.deposit, null);
   assert.match(result.fields.paymentTerms, /30 %/);
 });
+test("table labels, section headings and separate total lines are readable proposals", () => {
+  const text = `BEISPIEL MEDIA HOCHZEITSREPORTAGE
+Hochzeitsdatum
+21. Juni 2027
+Veranstaltungsort
+Potsdam
+Gästeanzahl
+ca. 180 Personen
+Geplante Aufnahmezeit
+ca. 07:00–15:00 Uhr
+Team
+1 Fotograf und 2 Videografen
+Leistungsumfang
+Begleitung des Hochzeitstages
+• Gruppenbilder und Paarporträts
+Fotografie
+• 280–320 bearbeitete Fotos
+• Galerie und Album mit 40 Seiten
+Videografie
+• Hochzeitsfilm 60 Minuten
+• Highlightfilm 4 Minuten
+Bearbeitungs- und Lieferzeiten
+Fotos und Videos
+2–4 Monate
+Hochzeitsalbum
+4–5 Monate
+Preisübersicht
+Videografie-Paket
+1.740,00 €
+Fotografie-Paket inklusive Album
+2.100,00 €
+Gesamtpreis
+3.840,00 €
+Anfahrt und Übernachtung sind enthalten.
+Beispiel Media KONTAKT`;
+  for (const value of [
+    text,
+    text.replaceAll(
+      /(Hochzeitsdatum|Veranstaltungsort|Gästeanzahl|Geplante Aufnahmezeit|Team)\n/g,
+      "$1 ",
+    ),
+  ]) {
+    const result = extractOffer([{ page: 3, text: value, method: "PDF-Text" }]);
+    assert.equal(result.fields.name, "Beispiel Media");
+    assert.equal(result.fields.price, 3840);
+    assert.equal(result.fields.photoPrice, 2100);
+    assert.equal(result.fields.videoPrice, 1740);
+    assert.equal(result.fields.team, "1 Fotograf und 2 Videografen");
+    assert.equal(result.fields.hours, "ca. 07:00–15:00 Uhr");
+    assert.equal(result.fields.venue, "Potsdam");
+    assert.equal(result.fields.eventDate, "21. Juni 2027");
+    assert.match(result.fields.photos, /280–320/);
+    assert.match(result.fields.video, /60 Minuten/);
+    assert.match(result.fields.delivery, /4–5 Monate/);
+    assert.equal(result.fields.basis, undefined);
+    assert.equal(result.evidence.price[0].page, 3);
+    assert.match(result.evidence.price[0].quote, /Gesamtpreis\n3.840,00 €/);
+  }
+});

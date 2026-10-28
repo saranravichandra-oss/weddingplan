@@ -35,22 +35,79 @@ export function extractOffer(pages) {
   const fields = {},
     evidence = {},
     warnings = [];
-  const lines = pages.flatMap((page) =>
+  const originalLines = pages.flatMap((page) =>
     page.text
       .split(/\r?\n/)
       .map((value) => ({ page: page.page, line: value.trim() }))
       .filter((x) => x.line),
   );
+  // PDF tables often split a label and its value across separate text rows.
+  // Keep the original quote while also exposing a logical label:value pair.
+  const labels = [
+    "Geplante Aufnahmezeit",
+    "Veranstaltungsdatum",
+    "Veranstaltungsort",
+    "Hochzeitsdatum",
+    "Gästeanzahl",
+    "Anzahl Gäste",
+    "Leistungsdauer",
+    "Gesamtpreis",
+    "Gesamtbetrag",
+    "Angebotssumme",
+    "Paketpreis",
+    "Anzahlung",
+    "Restbetrag",
+    "Restzahlung",
+    "Begleitung",
+    "Lieferzeit",
+    "Gültigkeit",
+    "Angebotsdatum",
+    "Aufnahmezeit",
+    "Location",
+    "Personal",
+    "Team",
+    "Datum",
+  ];
+  const labelPattern = new RegExp(
+    "^(" + labels.join("|") + ")(?:\\s*:\\s*|\\s+)(.+)$",
+    "i",
+  );
+  const lines = originalLines.flatMap((item, index) => {
+    const label = labels.find(
+      (label) =>
+        item.line.replace(/[:\s]+$/, "").toLowerCase() === label.toLowerCase(),
+    );
+    if (label) {
+      const next = originalLines[index + 1];
+      if (
+        next &&
+        next.page === item.page &&
+        !labels.some((l) => next.line.toLowerCase() === l.toLowerCase())
+      )
+        return [
+          item,
+          {
+            page: item.page,
+            line: label + ": " + next.line,
+            quote: item.line + "\n" + next.line,
+          },
+        ];
+    }
+    const match = item.line.match(labelPattern);
+    return match
+      ? [item, { ...item, line: match[1] + ": " + match[2], quote: item.line }]
+      : [item];
+  });
   const put = (field, value, line) => {
     fields[field] = value;
-    evidence[field] = [{ page: line.page, quote: line.line }];
+    evidence[field] = [{ page: line.page, quote: line.quote || line.line }];
   };
   function choose(field, pattern, transform = (value) => value) {
     const candidates = lines.flatMap((item) => {
       const match = item.line.match(pattern);
-      return match
-        ? [{ ...item, value: transform(match[1]?.trim() || item.line) }]
-        : [];
+      if (!match) return [];
+      const value = transform(match[1]?.trim() || item.line);
+      return value === undefined ? [] : [{ ...item, value }];
     });
     const unique = [...new Set(candidates.map((c) => JSON.stringify(c.value)))];
     if (unique.length === 1) put(field, candidates[0].value, candidates[0]);
@@ -63,6 +120,29 @@ export function extractOffer(pages) {
     "name",
     /^(?:anbieter|dienstleister|studio|company|vendor)\s*:\s*(.{2,200})$/i,
   );
+  if (!fields.name) {
+    const businesses = originalLines.flatMap((item) => {
+      const match = item.line.match(
+        /^([\p{L}\d&'.-]+(?:\s+[\p{L}\d&'.-]+){0,4}\s+(?:videography|photography|media|films?|studio|fotostudio))\b/iu,
+      );
+      return match &&
+        !/^(?:foto|video|preisangebot|angebot|professionelle|professionell)\b/i.test(
+          match[1],
+        )
+        ? [{ ...item, value: match[1] }]
+        : [];
+    });
+    const unique = [
+      ...new Set(
+        businesses.map((item) => item.value.toLowerCase().replace(/\s+/g, " ")),
+      ),
+    ];
+    if (unique.length === 1) {
+      const best =
+        businesses.find((item) => /[a-z]/.test(item.value)) || businesses[0];
+      put("name", best.value, best);
+    }
+  }
   const totals = lines
     .filter(
       (x) =>
@@ -120,7 +200,12 @@ export function extractOffer(pages) {
     warnings.push(
       "Netto- und Bruttoangaben gefunden. Preisbasis bitte selbst zuordnen.",
     );
-  choose("hours", /^(?:begleitung|dauer|coverage|leistungsdauer)\s*:\s*(.+)$/i);
+  choose(
+    "hours",
+    /^(?:begleitung|dauer|coverage|leistungsdauer|geplante aufnahmezeit|aufnahmezeit)\s*:\s*(.+)$/i,
+    (value) =>
+      /\d|ganztägig|ganztags|full day/i.test(value) ? value : undefined,
+  );
   choose("team", /^(?:team|personal|fotografen|videografen)\s*:\s*(.+)$/i);
   choose(
     "photos",
@@ -131,6 +216,59 @@ export function extractOffer(pages) {
   choose("validity", /^(?:gültig bis|gültigkeit|valid until)\s*:\s*(.+)$/i);
   choose("offerDate", /^(?:angebotsdatum|offer date)\s*:\s*(.+)$/i);
   choose("packageName", /^(?:paket|package|leistungspaket)\s*:\s*(.+)$/i);
+  choose(
+    "eventDate",
+    /^(?:hochzeitsdatum|veranstaltungsdatum|datum)\s*:\s*(.+)$/i,
+  );
+  choose("venue", /^(?:veranstaltungsort|location)\s*:\s*(.+)$/i);
+  choose("guestCount", /^(?:gästeanzahl|anzahl gäste)\s*:\s*(.+)$/i);
+  const sectionHeadings =
+    /^(?:leistungsumfang|fotografie|photography|videografie|videography|bearbeitungs[-\s]*(?:und\s+)?lieferzeiten|bearbeitungs-\s*und\s*lieferzeiten|lieferzeiten|preisübersicht|preise|kontakt|zahlungsbedingungen|optionale (?:leistungen|zusatzleistungen)|nicht enthalten)\s*:?$/i;
+  function section(field, heading) {
+    if (fields[field]) return;
+    const start = originalLines.findIndex((item) => heading.test(item.line));
+    if (start < 0) return;
+    const first = originalLines[start],
+      content = [];
+    for (let i = start + 1; i < originalLines.length; i++) {
+      const item = originalLines[i];
+      if (item.page !== first.page || sectionHeadings.test(item.line)) break;
+      content.push(item.line);
+    }
+    if (content.length)
+      put(field, content.join("\n").slice(0, 4000), {
+        ...first,
+        quote: [first.line, ...content].join("\n").slice(0, 2000),
+      });
+  }
+  section("included", /^leistungsumfang\s*:?$/i);
+  section("photos", /^(?:fotografie|photography)\s*:?$/i);
+  section("video", /^(?:videografie|videography)\s*:?$/i);
+  section(
+    "delivery",
+    /^(?:bearbeitungs[-\s]*(?:und\s+)?lieferzeiten|bearbeitungs-\s*und\s*lieferzeiten|lieferzeiten)\s*:?$/i,
+  );
+  for (const [field, heading] of [
+    ["photoPrice", /^(?:fotografie|photography|foto)[-\s]*(?:paket|package)/i],
+    [
+      "videoPrice",
+      /^(?:videografie|videography|video)[-\s]*(?:paket|package)/i,
+    ],
+  ]) {
+    const found = originalLines.flatMap((item, index) => {
+      if (!heading.test(item.line)) return [];
+      let values = moneyIn(item.line),
+        quote = item.line;
+      if (!values.length && originalLines[index + 1]?.page === item.page) {
+        const next = originalLines[index + 1];
+        values = moneyIn(next.line);
+        quote += "\n" + next.line;
+      }
+      return values.length === 1 ? [{ ...item, ...values[0], quote }] : [];
+    });
+    if (new Set(found.map((item) => item.value)).size === 1)
+      put(field, found[0].value, found[0]);
+  }
   choose(
     "extraHours",
     /^(?:zusatzstunde|mehrstunde|zusätzliche stunde|extra hour)\s*:\s*(.+)$/i,
@@ -167,10 +305,13 @@ export function extractOffer(pages) {
       ...percentageDeposit.map((x) => ({ page: x.page, quote: x.line })),
     ];
   }
-  const contact = lines.filter((x) =>
-    /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}|^(?:telefon|tel\.?|website|kontakt)\s*:/i.test(
-      x.line,
-    ),
+  const contact = lines.filter(
+    (x) =>
+      /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}|^(?:telefon|tel\.?|website|kontakt)\s*:/i.test(
+        x.line,
+      ) ||
+      (/^\+?\d[\d ()/-]+\d$/.test(x.line) &&
+        x.line.replace(/\D/g, "").length >= 8),
   );
   if (contact.length) {
     fields.contact = contact.map((x) => x.line).join("\n");

@@ -1,6 +1,20 @@
 # Wedding SS · Alles im Blick
 
-Die ausgewählte Variante A als private, gemeinsam nutzbare App. React und TypeScript im Browser, ein eigener Node.js-Server, SQLite und lokale Originaldateien. **Keine kostenpflichtige API, kein Cloudkonto und kein kostenpflichtiges Hosting erforderlich.**
+Die ausgewählte Variante A als private, gemeinsam nutzbare App. React und TypeScript im Browser, wahlweise lokal mit SQLite oder online mit Vercel Hobby und Supabase Free. Es gibt keinen Codepfad für kostenpflichtige KI-Aufrufe.
+
+## Online gemeinsam planen
+
+Die Cloud-Fassung verwendet eine stateless Vercel-Funktion als Proxy, eine Supabase Edge Function mit eigener Sitzungsprüfung, Postgres und einen privaten Storage-Bucket. Originale und Auswertungen werden dauerhaft im gemeinsamen Speicher abgelegt. Das Lesen von PDF-Text und die deutsche/englische OCR erfolgen im Browser mit selbst gehosteten Sprachdateien. Der Browser muss während der Auswertung geöffnet bleiben. Bei einem Abbruch kann die Auswertung fortgesetzt werden. Es gibt keine externe KI-Analyse und keinen benötigten OpenAI-Schlüssel.
+
+Anmeldung mit dem bestehenden Konto, Einladung des zweiten Zugangs unter **Gemeinsam**. Beide können über HTTPS auch aus verschiedenen Netzwerken zugreifen. Änderungen werden bei geöffneter Seite ungefähr alle 15 Sekunden geladen; gleichzeitige Änderungen desselben Eintrags werden erkannt. Automatische E-Mails werden nicht versendet.
+
+Die Bereitstellung benötigt Vercel **Hobby** und Supabase **Free**, ohne Upgrade oder kostenpflichtige Zusatzdienste. Die App begrenzt Dokumente auf 750 MB insgesamt und 15 MB pro Datei. Anbieterlimits gelten zusätzlich; kostenlose Projekte können bei Inaktivität pausieren oder beim Erreichen von Freigrenzen eingeschränkt werden. Es wird keine unbegrenzte Verfügbarkeit zugesichert. Exporte und Originale regelmäßig privat sichern.
+
+`npm run build:cloud` baut nach `dist-cloud`, der lokale Build bleibt in `dist`. Vercel erhält nur `WEDDING_BACKEND_URL` und den öffentlichen `WEDDING_BACKEND_PUBLIC_KEY`. Der Supabase-Administrationsschlüssel bleibt ausschließlich in der Edge-Runtime. Alle Anwendungstabellen haben RLS, direkten anonymen Zugriff und öffentliche Originale gibt es nicht. Produktionsadressen werden in `wedding_config.allowed_origins` ausdrücklich freigegeben.
+
+Für die einmalige Übernahme: lokale Sicherung erstellen, lokal Schreibzugriffe sperren, signierten Snapshot und private Originale mit `scripts/migrate-to-cloud.mjs` übertragen. Die Signatur wird mit einem temporären Ed25519-Schlüssel überprüft; nach Abschluss wird der öffentliche Migrationsschlüssel serverseitig entfernt. Private Migrationsdateien liegen ausschließlich im ignorierten Ordner `.wedding-cloud`. Die lokale Fassung bleibt anschließend als schreibgeschützte Sicherung erhalten. Keine privaten Dateien oder Passwort-Hashes gehören ins Repository.
+
+Cloud-Integrationstests verwenden einen ausdrücklich vorbereiteten, isolierten synthetischen Datenstand: `npx playwright test --config tests/cloud/playwright.config.ts`. Sie dürfen nicht gegen eure bereits migrierte Planung ausgeführt werden.
 
 Die App verwendet **echte lokale Texterkennung mit Tesseract.js und regelbasierte Angebotsextraktion**. Dies ist keine generative KI und keine simulierte Auswertung. Ein optional separat eingerichteter OpenAI-Schlüssel wird von der App weder geladen noch verwendet. Es gibt keinen Schalter und keinen Codepfad für kostenpflichtige OpenAI-Aufrufe.
 

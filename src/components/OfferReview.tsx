@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Check, FileText, Info, UploadSimple } from "@phosphor-icons/react";
 import { api, json, saveRecord } from "../api";
+import { analyzeDocument, cloudMode, uploadDocument } from "../documents";
 import { categories, emptyOffer } from "../data";
 import type { Document, Offer, Provider, WeddingEvent } from "../data";
 import { Badge, Button, ErrorMessage } from "./ui";
@@ -36,6 +37,29 @@ export default function OfferReview({
     offer?.manualFields || [],
   );
   const [selectedQuote, setSelectedQuote] = useState("");
+  const [localProgress, setLocalProgress] = useState("");
+  const [preview, setPreview] = useState("");
+  useEffect(() => {
+    if (!cloudMode || !documentId || !doc?.mime || !doc.uploaded) return;
+    let active = true,
+      objectUrl = "";
+    fetch(`/api/documents/${documentId}/file`, { credentials: "same-origin" })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("Original nicht erreichbar.");
+        const data = await response.arrayBuffer();
+        if (!active) return;
+        objectUrl = URL.createObjectURL(new Blob([data], { type: doc.mime }));
+        setPreview(objectUrl);
+      })
+      .catch((error) => {
+        if (active) setError(error.message);
+      });
+    return () => {
+      active = false;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      setPreview("");
+    };
+  }, [documentId, doc?.mime, doc?.uploaded]);
   useEffect(() => {
     if (!documentId) return;
     let active = true;
@@ -48,12 +72,22 @@ export default function OfferReview({
           if (active) setError(e.message);
         });
     void load();
-    const timer = setInterval(load, 1800);
+    const timer = setInterval(
+      () => {
+        if (
+          !document.hidden &&
+          doc?.status !== "complete" &&
+          doc?.status !== "error"
+        )
+          void load();
+      },
+      cloudMode ? 3000 : 1800,
+    );
     return () => {
       active = false;
       clearInterval(timer);
     };
-  }, [documentId]);
+  }, [documentId, doc?.status]);
   useEffect(() => {
     if (!doc?.analysis || applied === documentId) return;
     if (!offer || offer.documentId !== documentId) {
@@ -69,6 +103,26 @@ export default function OfferReview({
         confirmed: true,
       }));
       setCorrected([]);
+    } else {
+      // Reanalysis supplements empty fields; it never overwrites a correction.
+      setDraft((previous) => {
+        const next = { ...previous };
+        for (const [key, value] of Object.entries(doc.analysis!.fields)) {
+          if (offer.manualFields?.includes(key)) continue;
+          const existing = next[key as keyof Offer];
+          if (
+            existing === undefined ||
+            existing === null ||
+            existing === "" ||
+            (Array.isArray(existing) && !existing.length)
+          )
+            (next as Record<string, unknown>)[key] = value;
+        }
+        return {
+          ...next,
+          evidence: { ...previous.evidence, ...doc.analysis!.evidence },
+        };
+      });
     }
     setApplied(documentId);
   }, [doc, documentId, applied, offer]);
@@ -87,12 +141,7 @@ export default function OfferReview({
     setError("");
     setBusy(true);
     try {
-      const body = new FormData();
-      body.set("file", file);
-      const response = await api<{ id: string }>("/documents", {
-        method: "POST",
-        body,
-      });
+      const response = await uploadDocument(file, setLocalProgress);
       setDoc(null);
       setDocumentId(response.id);
       setPageNumber(1);
@@ -283,16 +332,45 @@ export default function OfferReview({
                 {doc.progress}
               </Badge>
               <strong>{doc.name}</strong>
-              {doc.error && (
+              {localProgress && doc.status !== "complete" && (
+                <small>{localProgress}</small>
+              )}
+              {(doc.error ||
+                (cloudMode &&
+                  doc.uploaded &&
+                  doc.status === "running" &&
+                  !localProgress)) && (
                 <>
-                  <ErrorMessage message={doc.error} />
+                  {doc.error && <ErrorMessage message={doc.error} />}
                   <Button
                     secondary
-                    onClick={() =>
-                      void api(`/documents/${documentId}/retry`, {
-                        method: "POST",
-                      }).catch((e) => setError(e.message))
-                    }
+                    onClick={async () => {
+                      try {
+                        await api(`/documents/${documentId}/retry`, {
+                          method: "POST",
+                        });
+                        setDoc((previous) =>
+                          previous
+                            ? {
+                                ...previous,
+                                status: "running",
+                                error: undefined,
+                                analysis: null,
+                              }
+                            : previous,
+                        );
+                        setApplied("");
+                        if (cloudMode)
+                          await analyzeDocument(
+                            documentId,
+                            undefined,
+                            doc.mime,
+                            setLocalProgress,
+                          );
+                      } catch (error) {
+                        setError((error as Error).message);
+                      }
+                    }}
                   >
                     Auswertung erneut versuchen
                   </Button>
@@ -306,13 +384,23 @@ export default function OfferReview({
               <iframe
                 className="file-preview"
                 title="Gespeichertes PDF-Original"
-                src={`/api/documents/${documentId}/file#page=${pageNumber}`}
+                src={
+                  cloudMode
+                    ? preview
+                      ? `${preview}#page=${pageNumber}`
+                      : undefined
+                    : `/api/documents/${documentId}/file#page=${pageNumber}`
+                }
               />
             ) : doc.mime.startsWith("image/") ? (
               <img
                 className="file-preview"
                 alt="Gespeichertes Originalangebot"
-                src={`/api/documents/${documentId}/file`}
+                src={
+                  cloudMode
+                    ? preview || undefined
+                    : `/api/documents/${documentId}/file`
+                }
               />
             ) : null)}
           {doc?.analysis && (
@@ -338,7 +426,12 @@ export default function OfferReview({
               <pre className="document-text">
                 {currentPage?.text.split("\n").map((line, i) => (
                   <span key={i}>
-                    {line === selectedQuote ? <mark>{line}</mark> : line}
+                    {selectedQuote &&
+                    selectedQuote.split("\n").includes(line) ? (
+                      <mark>{line}</mark>
+                    ) : (
+                      line
+                    )}
                     {"\n"}
                   </span>
                 ))}
@@ -351,10 +444,11 @@ export default function OfferReview({
             </>
           )}
           <small className="privacy-note">
-            Das Original bleibt für beide Konten verfügbar. Keine
-            Dokumentinhalte werden an OpenAI oder andere Auswertungsdienste
-            übertragen. Lokale OCR kann Zeichen und Tabellen falsch lesen;
-            Fundstellen bitte prüfen.
+            {cloudMode
+              ? "Texterkennung läuft auf deinem Gerät. Originale und erkannter Text werden für eure gemeinsame Planung privat gespeichert. Keine Übertragung an kostenpflichtige KI-Dienste."
+              : "Das Original bleibt für beide Konten verfügbar. Keine Dokumentinhalte werden an OpenAI oder andere Auswertungsdienste übertragen."}{" "}
+            Texterkennung kann Zeichen und Tabellen falsch lesen; Fundstellen
+            bitte prüfen.
           </small>
         </section>
         <form
@@ -381,7 +475,7 @@ export default function OfferReview({
         >
           <div className="pane-title">
             <Check size={18} />
-            <strong>Angaben prüfen und bestätigen</strong>
+            <strong>Die wichtigsten Angaben</strong>
           </div>
           <label>
             Anbieter
@@ -395,106 +489,124 @@ export default function OfferReview({
             />
             {source("name")}
           </label>
-          <label>
-            Mit Dienstleister verknüpfen
-            <select
-              value={draft.providerId || ""}
-              onChange={(e) => set("providerId", e.target.value || null)}
-            >
-              <option value="">Noch nicht zugeordnet</option>
-              {providers.map((provider) => (
-                <option value={provider.id} key={provider.id}>
-                  {provider.name}
-                </option>
-              ))}
-            </select>
-            <small>
-              Mehrere Angebote desselben Dienstleisters bleiben so zusammen.
-            </small>
-          </label>
           <div className="form-grid">
-            <label>
-              Kategorie
-              <select
-                value={draft.category}
-                onChange={(e) => set("category", e.target.value)}
-              >
-                {categories.map((c) => (
-                  <option key={c}>{c}</option>
-                ))}
-              </select>
-            </label>
-            {input("packageName", "Paket / Fassung")}
-          </div>
-          <fieldset className="event-checkboxes">
-            <legend>Abgedeckte Veranstaltungen</legend>
-            {events.map((event) => (
-              <label key={event.id}>
-                <input
-                  type="checkbox"
-                  checked={draft.events?.includes(event.name) || false}
-                  onChange={(e) =>
-                    set(
-                      "events",
-                      e.target.checked
-                        ? [...(draft.events || []), event.name]
-                        : (draft.events || []).filter((n) => n !== event.name),
-                    )
-                  }
-                />
-                {event.name}
-              </label>
-            ))}
-            {source("events")}
-          </fieldset>
-          <div className="form-grid">
-            {input("price", "Paketgesamtpreis", "number")}
+            {input("price", "Gesamtpreis", "number")}
             <label>
               Währung
               <select
                 value={draft.currency}
                 onChange={(e) => set("currency", e.target.value)}
               >
-                {["Nicht angegeben", "EUR", "USD", "GBP"].map((c) => (
-                  <option key={c}>{c}</option>
+                {["Nicht angegeben", "EUR", "USD", "GBP"].map((value) => (
+                  <option key={value}>{value}</option>
                 ))}
               </select>
               {source("currency")}
             </label>
           </div>
-          <label>
-            Preisbasis
-            <select
-              value={draft.basis}
-              onChange={(e) => set("basis", e.target.value)}
-            >
-              <option>Nicht angegeben</option>
-              <option>Brutto</option>
-              <option>Netto</option>
-            </select>
-            {source("basis")}
-          </label>
           <div className="form-grid">
-            {input("deposit", "Anzahlung", "number")}
-            {input("balance", "Restbetrag", "number")}
+            {input("team", "Team")}
+            {input("hours", "Begleitung / Aufnahmezeit")}
           </div>
-          {input("offerDate", "Angebotsdatum")}
-          {input("validity", "Gültigkeit")}
-          {area("included", "Enthaltene Leistungen")}
-          {area("excluded", "Ausdrücklich nicht enthalten")}
-          {area("optional", "Optionale Zusatzleistungen & Preise")}
+          {area("photos", "Fotografie: Leistungsumfang")}
+          {area("video", "Videografie: Leistungsumfang")}
+          {area("delivery", "Bearbeitungs- und Lieferzeiten")}
           {area("extras", "Fahrt, Übernachtung & Nebenkosten")}
-          {area("paymentTerms", "Zahlungsbedingungen")}
-          {input("hours", "Dauer der Begleitung")}
-          {input("team", "Foto-/Videografen")}
-          {input("photos", "Bearbeitete Bilder, Galerie & Album")}
-          {input("video", "Filmarten und Filmlängen")}
-          {input("extraHours", "Zusätzliche Stunden")}
-          {input("delivery", "Lieferzeit")}
-          {area("contact", "Kontaktangaben")}
-          {area("questions", "Offene Fragen")}
-          {input("source", "Weitere Quellenangabe")}
-          {area("decision", "Eure Einschätzung & Entscheidung")}
+          <div className="form-grid">
+            {input("eventDate", "Termin laut Angebot")}
+            {input("venue", "Veranstaltungsort laut Angebot")}
+          </div>
+          {input("guestCount", "Gäste laut Angebot")}
+          <details className="further-offer-fields">
+            <summary>Weitere Angebotsdetails und offene Punkte</summary>
+            <div className="form-stack">
+              <label>
+                Mit Dienstleister verknüpfen
+                <select
+                  value={draft.providerId || ""}
+                  onChange={(e) => set("providerId", e.target.value || null)}
+                >
+                  <option value="">Noch nicht zugeordnet</option>
+                  {providers.map((provider) => (
+                    <option value={provider.id} key={provider.id}>
+                      {provider.name}
+                    </option>
+                  ))}
+                </select>
+                <small>
+                  Mehrere Fassungen desselben Dienstleisters bleiben zusammen.
+                </small>
+              </label>
+              <div className="form-grid">
+                <label>
+                  Kategorie
+                  <select
+                    value={draft.category}
+                    onChange={(e) => set("category", e.target.value)}
+                  >
+                    {categories.map((category) => (
+                      <option key={category}>{category}</option>
+                    ))}
+                  </select>
+                </label>
+                {input("packageName", "Paket / Fassung")}
+              </div>
+              <fieldset className="event-checkboxes">
+                <legend>Abgedeckte Veranstaltungen</legend>
+                {events.map((event) => (
+                  <label key={event.id}>
+                    <input
+                      type="checkbox"
+                      checked={draft.events?.includes(event.name) || false}
+                      onChange={(e) =>
+                        set(
+                          "events",
+                          e.target.checked
+                            ? [...(draft.events || []), event.name]
+                            : (draft.events || []).filter(
+                                (name) => name !== event.name,
+                              ),
+                        )
+                      }
+                    />
+                    {event.name}
+                  </label>
+                ))}
+                {source("events")}
+              </fieldset>
+              <label>
+                Preisbasis
+                <select
+                  value={draft.basis}
+                  onChange={(e) => set("basis", e.target.value)}
+                >
+                  <option>Nicht angegeben</option>
+                  <option>Brutto</option>
+                  <option>Netto</option>
+                </select>
+                {source("basis")}
+              </label>
+              <div className="form-grid">
+                {input("photoPrice", "Fotografie-Teilpreis", "number")}
+                {input("videoPrice", "Videografie-Teilpreis", "number")}
+              </div>
+              <div className="form-grid">
+                {input("deposit", "Anzahlung", "number")}
+                {input("balance", "Restbetrag", "number")}
+              </div>
+              {input("offerDate", "Angebotsdatum")}
+              {input("validity", "Gültigkeit")}
+              {area("included", "Weitere enthaltene Leistungen")}
+              {area("excluded", "Ausdrücklich nicht enthalten")}
+              {area("optional", "Optionale Zusatzleistungen & Preise")}
+              {area("paymentTerms", "Zahlungsbedingungen")}
+              {input("extraHours", "Zusätzliche Stunden")}
+              {area("contact", "Kontaktangaben")}
+              {area("questions", "Offene Fragen")}
+              {input("source", "Weitere Quellenangabe")}
+              {area("decision", "Eure Einschätzung & Entscheidung")}
+            </div>
+          </details>
           <label className="confirmation">
             <input type="checkbox" required />
             <span>

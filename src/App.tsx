@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { cloudMode } from "./documents";
 import type { ReactNode } from "react";
 import {
   ArrowRight,
@@ -153,6 +154,7 @@ function PlanningApp({ user, logout }: { user: User; logout: () => void }) {
   const [guestEvent, setGuestEvent] = useState("");
   const [guestResponse, setGuestResponse] = useState("Alle Rückmeldungen");
   const [scenarioGuests, setScenarioGuests] = useState(200);
+  const [moreOfferDetails, setMoreOfferDetails] = useState(false);
   const refresh = useCallback(async () => {
     try {
       const data = await getState();
@@ -164,7 +166,12 @@ function PlanningApp({ user, logout }: { user: User; logout: () => void }) {
   }, []);
   useEffect(() => {
     void refresh();
-    const timer = setInterval(refresh, 5000);
+    const timer = setInterval(
+      () => {
+        if (!document.hidden) void refresh();
+      },
+      cloudMode ? 15000 : 5000,
+    );
     const focus = () => void refresh();
     window.addEventListener("focus", focus);
     return () => {
@@ -526,26 +533,35 @@ function PlanningApp({ user, logout }: { user: User; logout: () => void }) {
           .slice(0, 4)
       : filteredOffers.slice(-3);
   const offerRows: [string, keyof Offer][] = [
-    ["Paketpreis", "price"],
-    ["Preisbasis", "basis"],
-    ["Veranstaltungen", "events"],
-    ["Paket / Fassung", "packageName"],
-    ["Begleitung", "hours"],
+    ["Gesamtpreis", "price"],
+    ["Fotografie", "photos"],
+    ["Videografie", "video"],
     ["Team", "team"],
-    ["Bearbeitete Fotos", "photos"],
-    ["Video", "video"],
-    ["Enthalten", "included"],
-    ["Ausdrücklich nicht enthalten", "excluded"],
-    ["Optionale Leistungen", "optional"],
-    ["Fahrt & Nebenkosten", "extras"],
-    ["Anzahlung", "deposit"],
-    ["Restbetrag", "balance"],
-    ["Zahlungsbedingungen", "paymentTerms"],
-    ["Zusätzliche Stunden", "extraHours"],
-    ["Lieferzeit", "delivery"],
-    ["Gültigkeit", "validity"],
-    ["Offene Fragen", "questions"],
-    ["Eure Entscheidung", "decision"],
+    ["Begleitung / Aufnahmezeit", "hours"],
+    ["Lieferzeiten", "delivery"],
+    ["Fahrt & Übernachtung", "extras"],
+    ...(moreOfferDetails
+      ? ([
+          ["Termin laut Angebot", "eventDate"],
+          ["Ort laut Angebot", "venue"],
+          ["Gäste laut Angebot", "guestCount"],
+          ["Fotografie-Teilpreis", "photoPrice"],
+          ["Videografie-Teilpreis", "videoPrice"],
+          ["Preisbasis", "basis"],
+          ["Veranstaltungen", "events"],
+          ["Paket / Fassung", "packageName"],
+          ["Weitere enthaltene Leistungen", "included"],
+          ["Ausdrücklich nicht enthalten", "excluded"],
+          ["Optionale Leistungen", "optional"],
+          ["Anzahlung", "deposit"],
+          ["Restbetrag", "balance"],
+          ["Zahlungsbedingungen", "paymentTerms"],
+          ["Zusätzliche Stunden", "extraHours"],
+          ["Gültigkeit", "validity"],
+          ["Offene Fragen", "questions"],
+          ["Eure Entscheidung", "decision"],
+        ] as [string, keyof Offer][])
+      : []),
   ];
   const comparison = (
     <>
@@ -671,13 +687,27 @@ function PlanningApp({ user, logout }: { user: User; logout: () => void }) {
                         key={offer.id}
                         className={key === "price" ? "price-cell" : ""}
                       >
-                        {key === "price" ||
-                        key === "deposit" ||
-                        key === "balance"
-                          ? price(offer[key] as number | null, offer.currency)
+                        {[
+                          "price",
+                          "photoPrice",
+                          "videoPrice",
+                          "deposit",
+                          "balance",
+                        ].includes(key)
+                          ? price(
+                              (offer[key] ?? null) as number | null,
+                              offer.currency,
+                            )
                           : key === "events"
                             ? offer.events.join(" + ") || "Nicht angegeben"
                             : String(offer[key] || "Nicht angegeben")}
+                        {key === "price" && (
+                          <span className="table-sub">
+                            {offer.basis === "Nicht angegeben"
+                              ? "Netto/Brutto offen"
+                              : offer.basis}
+                          </span>
+                        )}
                         {offer.evidence[key]?.length ? (
                           <span className="table-sub">
                             Quelle: S.{" "}
@@ -760,6 +790,18 @@ function PlanningApp({ user, logout }: { user: User; logout: () => void }) {
               Erstes Angebot hinzufügen <ArrowRight size={17} />
             </Button>
           </div>
+        )}
+        {compared.length > 0 && (
+          <button
+            className="text-button compare-details-toggle"
+            aria-expanded={moreOfferDetails}
+            onClick={() => setMoreOfferDetails(!moreOfferDetails)}
+          >
+            {moreOfferDetails
+              ? "Zusätzliche Details ausblenden"
+              : "Weitere Angebotsdetails anzeigen"}{" "}
+            <ArrowRight size={15} />
+          </button>
         )}
         <div className="comparison-foot">
           <WarningCircle size={18} />
@@ -1424,7 +1466,9 @@ function PlanningApp({ user, logout }: { user: User; logout: () => void }) {
             <span>
               {connectionError
                 ? `Keine Verbindung: ${connectionError} Änderungen erst nach bestätigtem Speichern übernehmen.`
-                : "Privat auf eurem Rechner gespeichert · Für euch beide synchronisiert · Keine kostenpflichtigen APIs"}
+                : cloudMode
+                  ? "Privat in der Cloud gespeichert · Für euch beide erreichbar · Keine kostenpflichtige KI"
+                  : "Privat auf eurem Rechner gespeichert · Für euch beide synchronisiert · Keine kostenpflichtigen APIs"}
             </span>
             {connectionError && (
               <button className="text-button" onClick={() => void refresh()}>
@@ -1433,6 +1477,25 @@ function PlanningApp({ user, logout }: { user: User; logout: () => void }) {
             )}
           </div>
           <main id="main" className="main-content">
+            {state?.cloudMove && (
+              <div className="session-notice" role="status">
+                {state.cloudMove.complete ? (
+                  <span>
+                    Eure Planung ist jetzt online.{" "}
+                    <a href={state.cloudMove.siteUrl}>
+                      Hier gemeinsam weiterplanen
+                    </a>
+                    . Diese lokale Sicherung ist schreibgeschützt.
+                  </span>
+                ) : (
+                  <span>
+                    Eure Planung wird sicher online übernommen. Bitte kurz
+                    warten; diese lokale Fassung ist vorübergehend
+                    schreibgeschützt.
+                  </span>
+                )}
+              </div>
+            )}
             {content}
             <footer className="page-footer">
               <span>

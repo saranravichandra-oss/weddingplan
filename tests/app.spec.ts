@@ -101,8 +101,11 @@ test("text extraction proposes values with source evidence; confirmed unknown pr
     page.getByRole("textbox", { name: "Anbieter", exact: true }),
   ).toHaveValue("Browser-Teststudio");
   await expect(
-    page.getByRole("spinbutton", { name: "Paketgesamtpreis", exact: true }),
+    page.getByRole("spinbutton", { name: "Gesamtpreis", exact: true }),
   ).toHaveValue("");
+  await page
+    .getByText("Weitere Angebotsdetails und offene Punkte", { exact: true })
+    .click();
   await expect(
     page.getByRole("spinbutton", { name: "Anzahlung", exact: true }),
   ).toHaveValue("500");
@@ -146,7 +149,7 @@ test("actual screenshot OCR fills a price and keeps its page source", async ({
     page.getByRole("textbox", { name: "Anbieter", exact: true }),
   ).toHaveValue("Teststudio", { timeout: 40000 });
   await expect(
-    page.getByRole("spinbutton", { name: "Paketgesamtpreis", exact: true }),
+    page.getByRole("spinbutton", { name: "Gesamtpreis", exact: true }),
   ).toHaveValue("3200");
   await expect(
     page.getByAltText("Gespeichertes Originalangebot"),

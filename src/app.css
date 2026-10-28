@@ -3,6 +3,25 @@
   opacity: 0.6;
   transform: none;
 }
+.compare-details-toggle {
+  padding: 18px 23px;
+  font-size: 12px;
+}
+.further-offer-fields {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 14px;
+}
+.further-offer-fields > summary {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--accent);
+  cursor: pointer;
+  line-height: 1.8;
+}
+.further-offer-fields > .form-stack {
+  margin-top: 20px;
+}
 .account-page {
   min-height: 100dvh;
   padding: 42px 20px;

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { cloudMode } from "../documents";
 import { Flower, LockKey } from "@phosphor-icons/react";
 import { api, json, setCsrf } from "../api";
 import type { Auth } from "../api";
@@ -25,7 +26,9 @@ export default function AccountGate({
       })
       .catch(() =>
         setError(
-          "Der lokale Server ist nicht erreichbar. Bitte die App auf dem Hauptrechner starten.",
+          cloudMode
+            ? "Die Datenverbindung ist gerade nicht erreichbar. Bitte später erneut versuchen."
+            : "Der lokale Server ist nicht erreichbar. Bitte die App auf dem Hauptrechner starten.",
         ),
       );
   }, []);
@@ -154,8 +157,9 @@ export default function AccountGate({
         <div className="account-note">
           <LockKey size={17} />
           <span>
-            Daten bleiben auf eurem Rechner. Keine kostenpflichtigen APIs. Für
-            beide Geräte muss derselbe App-Server erreichbar sein.
+            {cloudMode
+              ? "Private Cloudplanung für euch beide. Ihr könnt euch aus unterschiedlichen Netzwerken anmelden. Keine kostenpflichtige KI."
+              : "Daten bleiben auf eurem Rechner. Keine kostenpflichtigen APIs. Für beide Geräte muss derselbe App-Server erreichbar sein."}
           </span>
         </div>
       </div>

@@ -1,0 +1,9 @@
+.git
+.wedding-data
+.wedding-backups
+.wedding-cloud
+.test-data*
+.env*
+test-results
+playwright-report
+node_modules

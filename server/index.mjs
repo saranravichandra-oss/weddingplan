@@ -10,7 +10,13 @@ import {
   timingSafeEqual,
 } from "node:crypto";
 import { promisify } from "node:util";
-import { mkdirSync, writeFileSync, unlinkSync, existsSync } from "node:fs";
+import {
+  mkdirSync,
+  writeFileSync,
+  unlinkSync,
+  existsSync,
+  readFileSync,
+} from "node:fs";
 import { resolve, join } from "node:path";
 import { networkInterfaces } from "node:os";
 import { createServer } from "node:http";
@@ -51,7 +57,37 @@ const allowedHosts = new Set([
     .map((i) => i.address),
 ]);
 const app = express();
+const cloudMove = () => {
+  if (directory !== resolve(".wedding-data")) return null;
+  const marker = resolve(".wedding-cloud/migration-result.json");
+  if (existsSync(marker)) {
+    try {
+      const result = JSON.parse(readFileSync(marker, "utf8"));
+      return {
+        siteUrl: result.siteUrl || "",
+        complete: result.phase === "complete",
+      };
+    } catch {}
+  }
+  return existsSync(resolve(".wedding-cloud/migrating.lock"))
+    ? { siteUrl: "", complete: false }
+    : null;
+};
 app.disable("x-powered-by");
+app.use("/api", (req, res, next) => {
+  const move = cloudMove();
+  if (
+    move &&
+    !["GET", "HEAD", "OPTIONS"].includes(req.method) &&
+    !["/auth/login", "/auth/logout"].includes(req.path)
+  )
+    return res.status(409).json({
+      error: move.complete
+        ? `Eure Planung ist jetzt online. Bitte dort weiterplanen: ${move.siteUrl}`
+        : "Eure Planung wird gerade sicher online übernommen. Bitte kurz warten; die lokale Fassung ist vorübergehend schreibgeschützt.",
+    });
+  next();
+});
 app.use((req, res, next) => {
   const requestHost = (req.headers.host || "").replace(/:\d+$/, "");
   if (!allowedHosts.has(requestHost))
@@ -325,6 +361,7 @@ app.get("/api/state", session, (req, res) =>
       .prepare("SELECT id,name,email FROM users ORDER BY created_at")
       .all(),
     network: network(),
+    cloudMove: cloudMove(),
     paidApiCalls: false,
   }),
 );
@@ -808,7 +845,7 @@ app.use((error, req, res, next) => {
 });
 app.use((req, res, next) => {
   if (
-    /^\/(?:\.wedding-data|\.wedding-backups|server|tests)(?:\/|$)/i.test(
+    /^\/(?:\.wedding-data|\.wedding-backups|\.wedding-cloud|\.vercel|\.git|cloud|supabase|scripts|server|tests)(?:\/|$)/i.test(
       req.path,
     )
   )
@@ -829,6 +866,7 @@ if (production) {
         ignored: [
           "**/.wedding-data/**",
           "**/.wedding-backups/**",
+          "**/.wedding-cloud/**",
           "**/.test-data*/**",
         ],
       },
@@ -838,6 +876,9 @@ if (production) {
           "**/.env*",
           "**/.wedding-data/**",
           "**/.wedding-backups/**",
+          "**/.wedding-cloud/**",
+          "**/.git/**",
+          "**/.vercel/**",
           "**/.test-data*/**",
           "**/*.sqlite*",
           "**/*.pem",

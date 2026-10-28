@@ -9,3 +9,9 @@ playwright-report/
 .test-data*/
 *.traineddata
 *.traineddata.gz
+.wedding-cloud/
+.vercel/
+public/ocr/
+cloud/deno.lock
+dist-cloud/
+supabase/.temp/
