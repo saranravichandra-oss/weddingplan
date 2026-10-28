@@ -1,29 +1,29 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import {
-  ArrowDown,
   ArrowRight,
   ArrowUpRight,
   Buildings,
   CalendarBlank,
   Camera,
-  CaretDown,
   Check,
   CheckCircle,
-  Checks,
   Circle,
-  ClipboardText,
   Coins,
+  DownloadSimple,
   FileText,
   Flower,
   Heart,
   House,
   Info,
   ListChecks,
+  LockKey,
   MapPin,
-  MusicNotes,
+  PencilSimple,
   Plus,
   Scales,
+  SignOut,
+  Trash,
   UploadSimple,
   Users,
   Wallet,
@@ -31,10 +31,31 @@ import {
   X,
 } from "@phosphor-icons/react";
 import type { Icon } from "@phosphor-icons/react";
-import { demoOffers, events, initialTasks, money } from "./data";
-import type { Offer, Section } from "./data";
+import { api, deleteRecord, getState, json, saveRecord, setCsrf } from "./api";
+import type { Auth } from "./api";
+import { dateText, money, price } from "./data";
+import type {
+  AppState,
+  Cost,
+  Kind,
+  Offer,
+  Section,
+  Stored,
+  User,
+} from "./data";
+import AccountGate from "./components/AccountGate";
+import OfferReview from "./components/OfferReview";
+import RecordEditor from "./components/RecordEditor";
+import Team from "./components/Team";
+import {
+  Badge,
+  Button,
+  Dialog,
+  ErrorMessage,
+  Heading,
+  Title,
+} from "./components/ui";
 
-type Modal = "upload" | "provider" | "details" | "info" | null;
 const navigation: { label: Section; icon: Icon }[] = [
   { label: "Übersicht", icon: House },
   { label: "Dienstleister", icon: Scales },
@@ -43,152 +64,259 @@ const navigation: { label: Section; icon: Icon }[] = [
   { label: "Aufgaben", icon: ListChecks },
   { label: "Veranstaltungen", icon: CalendarBlank },
   { label: "Dokumente", icon: FileText },
+  { label: "Gemeinsam", icon: Heart },
 ];
-function Button({
-  children,
-  onClick,
-  secondary = false,
-  className = "",
-  type = "button",
-}: {
-  children: ReactNode;
-  onClick?: () => void;
-  secondary?: boolean;
-  className?: string;
-  type?: "button" | "submit";
-}) {
+export default function App() {
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    api<Auth>("/auth/me")
+      .then((data) => {
+        setCsrf(data.csrf);
+        setUser(data.user);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+    const expired = () => {
+      setUser(null);
+      setCsrf("");
+    };
+    window.addEventListener("session-expired", expired);
+    return () => window.removeEventListener("session-expired", expired);
+  }, []);
+  if (loading)
+    return (
+      <div className="account-page">
+        <Flower size={40} />
+        <p>Eure Planung wird geöffnet …</p>
+      </div>
+    );
+  if (!user) return <AccountGate onLogin={setUser} />;
   return (
-    <button
-      type={type}
-      className={`${secondary ? "button secondary" : "button"} ${className}`}
-      onClick={onClick}
-    >
-      {children}
-    </button>
+    <PlanningApp
+      user={user}
+      logout={async () => {
+        try {
+          await api("/auth/logout", { method: "POST" });
+          setCsrf("");
+          setUser(null);
+        } catch {
+          /* Keep the user signed in if the server did not invalidate the session. */
+        }
+      }}
+    />
   );
 }
-function Badge({
-  children,
-  tone = "",
+function Stat({
+  icon: IconComponent,
+  label,
+  value,
+  detail,
 }: {
-  children: ReactNode;
-  tone?: string;
-}) {
-  return <span className={`badge ${tone}`}>{children}</span>;
-}
-function SectionHeading({
-  title,
-  subtitle,
-  action,
-}: {
-  title: string;
-  subtitle?: string;
-  action?: ReactNode;
+  icon: Icon;
+  label: string;
+  value: string;
+  detail: string;
 }) {
   return (
-    <div className="section-heading">
-      <div>
-        <h2>{title}</h2>
-        {subtitle && <p>{subtitle}</p>}
+    <div className="stat">
+      <div className="stat-label">
+        <IconComponent size={18} />
+        <span>{label}</span>
       </div>
-      {action}
+      <strong className={value === "Noch offen" ? "open-value" : ""}>
+        {value}
+      </strong>
+      <p>{detail}</p>
     </div>
   );
 }
-function App() {
+function PlanningApp({ user, logout }: { user: User; logout: () => void }) {
+  const [state, setState] = useState<AppState | null>(null);
+  const [connectionError, setConnectionError] = useState("");
   const [section, setSection] = useState<Section>("Übersicht");
-  const [modal, setModal] = useState<Modal>(null);
-  const [tasks, setTasks] = useState(initialTasks);
-  const [demo, setDemo] = useState(false);
-  const [offers, setOffers] = useState<Offer[]>([]);
-  const [providers, setProviders] = useState<
-    {
-      name: string;
-      category: string;
-      event: string;
-      website: string;
-      notes: string;
-      status: string;
-    }[]
-  >([]);
-  const [event, setEvent] = useState(0);
   const [notice, setNotice] = useState("");
+  const [editor, setEditor] = useState<{
+    kind: Exclude<Kind, "offers">;
+    record?: Record<string, unknown> & Partial<Stored>;
+  } | null>(null);
+  const [review, setReview] = useState<{
+    offer?: Offer;
+    documentId?: string;
+  } | null>(null);
+  const [booking, setBooking] = useState<Offer | null>(null);
+  const [bookingError, setBookingError] = useState("");
+  const [busy, setBusy] = useState(false);
   const [filter, setFilter] = useState("Alle Kategorien");
-  const [review, setReview] = useState<Offer | null>(null);
-  const [documents, setDocuments] = useState<string[]>([]);
-  const notify = (message: string) => setNotice(message);
+  const [search, setSearch] = useState("");
+  const [selected, setSelected] = useState<string[] | null>(null);
+  const [guestEvent, setGuestEvent] = useState("");
+  const [guestResponse, setGuestResponse] = useState("Alle Rückmeldungen");
+  const [scenarioGuests, setScenarioGuests] = useState(200);
+  const refresh = useCallback(async () => {
+    try {
+      const data = await getState();
+      setState(data);
+      setConnectionError("");
+    } catch (error) {
+      setConnectionError((error as Error).message);
+    }
+  }, []);
+  useEffect(() => {
+    void refresh();
+    const timer = setInterval(refresh, 5000);
+    const focus = () => void refresh();
+    window.addEventListener("focus", focus);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener("focus", focus);
+    };
+  }, [refresh]);
   useEffect(() => {
     if (!notice) return;
-    const timer = setTimeout(() => setNotice(""), 5500);
+    const timer = setTimeout(() => setNotice(""), 7000);
     return () => clearTimeout(timer);
   }, [notice]);
-  const visibleOffers = (demo ? demoOffers : offers).filter(
-    (o) => filter === "Alle Kategorien" || o.category === filter,
-  );
-  const toggleTask = (id: number) =>
-    setTasks(tasks.map((t) => (t.id === id ? { ...t, done: !t.done } : t)));
-  const upload = () => {
-    setReview(null);
-    setModal("upload");
+  const go = (value: Section) => {
+    setSection(value);
+    setSearch("");
+    window.scrollTo({ top: 0 });
   };
-  const compare = () => setSection("Dienstleister");
-  const isCompare = section === "Dienstleister";
-
-  const payment = (
+  const edit = (kind: Exclude<Kind, "offers">, record?: object) =>
+    setEditor({
+      kind,
+      record: record as (Record<string, unknown> & Partial<Stored>) | undefined,
+    });
+  const saved = async () => {
+    setEditor(null);
+    setReview(null);
+    setNotice("Dauerhaft gespeichert. Für euch beide verfügbar.");
+    await refresh();
+  };
+  const remove = async (kind: Kind, record: Stored) => {
+    if (!window.confirm("Diesen Eintrag dauerhaft löschen?")) return;
+    try {
+      await deleteRecord(kind, record);
+      setNotice("Eintrag gelöscht.");
+    } catch (error) {
+      setNotice((error as Error).message);
+    }
+    await refresh();
+  };
+  const mutate = async (
+    kind: Kind,
+    data: Partial<Stored> & Record<string, unknown>,
+  ) => {
+    try {
+      await saveRecord(kind, data);
+      setNotice("Änderung gespeichert.");
+    } catch (error) {
+      setNotice((error as Error).message);
+    }
+    await refresh();
+  };
+  if (!state)
+    return (
+      <div className="account-page">
+        <Flower size={40} />
+        <p>Gespeicherte Planung wird geladen …</p>
+        <ErrorMessage message={connectionError} />
+        <Button onClick={() => void refresh()}>Erneut versuchen</Button>
+      </div>
+    );
+  const budget = state.settings.find((s) => s.id === "budget")!;
+  const committedCosts = state.costs.filter((c) => c.stage === "Beauftragt");
+  const committed = committedCosts.reduce((sum, c) => sum + (c.amount ?? 0), 0);
+  const paid = committedCosts.reduce((sum, c) => sum + (c.paid ?? 0), 0);
+  const knownOpen = committedCosts.reduce(
+    (sum, cost) =>
+      cost.amount !== null && cost.paid !== null
+        ? sum + cost.amount - cost.paid
+        : sum,
+    0,
+  );
+  const unknownBalances = committedCosts.filter(
+    (cost) => cost.amount === null || cost.paid === null,
+  ).length;
+  const unknownCommitted = committedCosts.filter(
+    (c) => c.amount === null,
+  ).length;
+  const hall = state.costs.find(
+    (c) =>
+      c.event === "Standesamt" &&
+      c.category === "Location" &&
+      c.stage === "Beauftragt",
+  );
+  const activeTasks = [...state.tasks].sort(
+    (a, b) => Number(a.done) - Number(b.done),
+  );
+  const drafts = state.documents.filter(
+    (d) => !state.offers.some((o) => o.documentId === d.id),
+  );
+  const paymentCard = (
     <div className="payment-card panel">
       <div className="card-top">
         <div className="icon-box">
           <Buildings size={22} />
         </div>
-        <Badge tone="success">
-          <Check size={12} /> Gebucht
+        <Badge tone={hall ? "success" : ""}>
+          {hall ? "Gebucht" : "Noch offen"}
         </Badge>
       </div>
-      <h3>Saal fürs Standesamt</h3>
-      <p>Ein wichtiger Schritt ist schon geschafft.</p>
+      <h3>{hall?.label || "Saal fürs Standesamt"}</h3>
+      <p>Die bekannte Saalzahlung, getrennt von eurem Gesamtbudget.</p>
       <div className="payment-number">
-        {money(1000)}
+        {hall ? price(hall.amount) : "Nicht erfasst"}
         <span>vereinbarter Gesamtpreis</span>
       </div>
-      <div
-        className="payment-track"
-        role="img"
-        aria-label="500 von 1.000 Euro bezahlt, 50 Prozent"
-      >
-        <span />
-      </div>
-      <div className="payment-split">
-        <span>
-          <i className="dot green" />
-          {money(500)} angezahlt
-        </span>
-        <span>
-          <i className="dot light" />
-          {money(500)} offen
-        </span>
-      </div>
-      <div className="payment-foot">
-        <CalendarBlank size={16} />
-        <span>Zahlungsfrist noch offen</span>
-        <button
-          className="icon-button"
-          aria-label="Saaldetails anzeigen"
-          onClick={() => setModal("details")}
-        >
-          <ArrowUpRight size={18} />
-        </button>
-      </div>
+      {hall && (
+        <>
+          <progress
+            className="actual-payment-progress"
+            value={hall.paid ?? 0}
+            max={hall.amount || 1}
+            aria-label="Anteil der geleisteten Saalzahlung"
+          />
+          <div className="payment-split">
+            <span>
+              {hall.paid === null
+                ? "Zahlungsstand unbekannt"
+                : money(hall.paid) + " gezahlt"}
+            </span>
+            <span>
+              {hall.amount === null || hall.paid === null
+                ? "Restbetrag offen"
+                : money(hall.amount - hall.paid) + " offen"}
+            </span>
+          </div>
+          <div className="payment-foot">
+            <CalendarBlank size={16} />
+            <span>
+              {hall.due
+                ? "Fällig am " + dateText(hall.due)
+                : "Zahlungsfrist noch offen"}
+            </span>
+            <button
+              className="icon-button"
+              aria-label="Saalkosten bearbeiten"
+              onClick={() => edit("costs", hall)}
+            >
+              <PencilSimple size={17} />
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
   const taskList = (compact = false) => (
-    <div className={`task-list ${compact ? "compact" : ""}`}>
-      {tasks.slice(0, compact ? 3 : tasks.length).map((task) => (
-        <div className={`task ${task.done ? "done" : ""}`} key={task.id}>
+    <div className="task-list">
+      {(compact ? activeTasks.slice(0, 3) : activeTasks).map((task) => (
+        <div key={task.id} className={`task ${task.done ? "done" : ""}`}>
           <button
             className="task-check"
             aria-label={`${task.title}: ${task.done ? "wieder öffnen" : "als erledigt markieren"}`}
             aria-pressed={task.done}
-            onClick={() => toggleTask(task.id)}
+            onClick={() => void mutate("tasks", { ...task, done: !task.done })}
           >
             {task.done ? (
               <CheckCircle size={23} weight="fill" />
@@ -200,14 +328,38 @@ function App() {
             <strong>{task.title}</strong>
             <p>{task.detail}</p>
             <span className="task-meta">
-              {task.category} <span>·</span> Kein Termin festgelegt
+              {state.members.find((m) => m.id === task.owner)?.name ||
+                "Verantwortung offen"}{" "}
+              · {task.due ? dateText(task.due) : "Termin offen"}
+              {task.event && " · " + task.event}
             </span>
           </div>
-          <Badge tone={task.id === 1 ? "warm" : ""}>
+          <Badge tone={task.priority === "Hoch" && !task.done ? "warm" : ""}>
             {task.done ? "Erledigt" : task.priority}
           </Badge>
+          <button
+            className="icon-button"
+            aria-label={`${task.title} bearbeiten`}
+            onClick={() => edit("tasks", task)}
+          >
+            <PencilSimple size={17} />
+          </button>
+          {!compact && (
+            <button
+              className="icon-button"
+              aria-label={`${task.title} löschen`}
+              onClick={() => void remove("tasks", task)}
+            >
+              <Trash size={16} />
+            </button>
+          )}
         </div>
       ))}
+      {!state.tasks.length && (
+        <p className="empty-copy">
+          Noch keine Aufgaben. Legt euren nächsten Schritt an.
+        </p>
+      )}
     </div>
   );
   const overview = (
@@ -221,34 +373,44 @@ function App() {
           </h1>
           <p>Hier wird aus vielen kleinen Entscheidungen euer großer Tag.</p>
         </div>
-        <div className="greeting-mark" aria-hidden="true">
-          <Flower size={73} weight="thin" />
-        </div>
+        <Flower className="greeting-mark" size={73} weight="thin" />
       </div>
       <div className="stats-grid">
         <Stat
           icon={CalendarBlank}
           label="Euer Hochzeitsjahr"
           value="2027"
-          detail="Das genaue Datum ist noch offen"
+          detail={
+            state.events.some((e) => e.date)
+              ? "Termine unter Veranstaltungen"
+              : "Das genaue Datum ist noch offen"
+          }
         />
         <Stat
           icon={Users}
           label="Geplante Gäste"
           value="180–220"
-          detail="Bei eurer größten Feier"
+          detail="Bei eurer größten Feier · Einzelzahlen offen"
         />
         <Stat
           icon={Wallet}
-          label="Bekannte beauftragte Kosten"
-          value={money(1000)}
-          detail="Bisher erfasst: nur der Saal"
+          label="Bekannt beauftragt"
+          value={money(committed)}
+          detail={
+            unknownCommitted
+              ? `${unknownCommitted} weitere Beträge offen`
+              : `${committedCosts.length} erfasste Kostenpositionen`
+          }
         />
         <Stat
           icon={Heart}
-          label="Euer Budgetrahmen"
-          value="Noch offen"
-          detail="Gemeinsam den Rahmen setzen"
+          label="Euer Zielbudget"
+          value={budget.target === null ? "Noch offen" : money(budget.target)}
+          detail={
+            budget.limit === null
+              ? "Obergrenze noch offen"
+              : "Obergrenze " + money(budget.limit)
+          }
         />
       </div>
       <div className="overview-grid">
@@ -262,10 +424,11 @@ function App() {
                 Welches Foto-Team passt zu euch?
               </h2>
               <p>
-                Erste Angebote liegen euch bereits vor. Bringt Leistungen,
-                Preise und offene Fragen an einen Ort.
+                {state.offers.length
+                  ? `${state.offers.length} geprüfte Angebote sind gespeichert. Vergleicht Leistungen, Preise und offene Fragen.`
+                  : "Erste Angebote liegen euch bereits vor. Ladet sie hoch und prüft die automatisch erkannten Angaben."}
               </p>
-              <Button onClick={compare}>
+              <Button onClick={() => go("Dienstleister")}>
                 Angebote vergleichen <ArrowRight size={17} />
               </Button>
             </div>
@@ -275,14 +438,11 @@ function App() {
             </div>
           </div>
           <section className="panel tasks-panel">
-            <SectionHeading
+            <Heading
               title="Als Nächstes"
               subtitle="Die wichtigen Schritte, ohne das große Durcheinander."
               action={
-                <button
-                  className="text-button"
-                  onClick={() => setSection("Aufgaben")}
-                >
+                <button className="text-button" onClick={() => go("Aufgaben")}>
                   Alle Aufgaben <ArrowRight />
                 </button>
               }
@@ -290,30 +450,24 @@ function App() {
             {taskList(true)}
           </section>
           <section className="event-overview">
-            <SectionHeading
+            <Heading
               title="Drei Feiern. Eine Geschichte."
               action={
                 <button
                   className="text-button"
-                  onClick={() => setSection("Veranstaltungen")}
+                  onClick={() => go("Veranstaltungen")}
                 >
                   Planung öffnen <ArrowRight />
                 </button>
               }
             />
             <div className="mini-events">
-              {events.map((name, i) => (
-                <button
-                  key={name}
-                  onClick={() => {
-                    setEvent(i);
-                    setSection("Veranstaltungen");
-                  }}
-                >
+              {state.events.map((event, i) => (
+                <button key={event.id} onClick={() => edit("events", event)}>
                   <span className="event-no">0{i + 1}</span>
-                  <h3>{name}</h3>
+                  <h3>{event.name}</h3>
                   <span>
-                    {i === 0 ? "Saal gebucht" : "In Planung"}{" "}
+                    {event.date ? dateText(event.date) : event.status}{" "}
                     <ArrowUpRight size={16} />
                   </span>
                 </button>
@@ -322,642 +476,861 @@ function App() {
           </section>
         </div>
         <aside className="side-column">
-          {payment}
+          {paymentCard}
           <div className="panel upload-card">
             <div className="icon-box">
               <UploadSimple size={23} />
             </div>
             <h3>Vom Angebot zum Überblick</h3>
             <p>
-              PDF, Screenshot oder Text: Unterlagen ansehen und Angaben manuell
-              prüfen.
+              PDF, Screenshot oder Text: lokal auswerten, Angaben prüfen und
+              gemeinsam vergleichen.
             </p>
-            <Button secondary onClick={upload}>
+            <Button secondary onClick={() => setReview({})}>
               <Plus size={17} /> Angebot hinzufügen
             </Button>
-            <small>Automatische Auswertung ist geplant.</small>
+            <small>Echte lokale OCR · keine API-Gebühren</small>
           </div>
+          {drafts.length > 0 && (
+            <div className="panel pending-documents">
+              <h3>{drafts.length} Unterlagen noch prüfen</h3>
+              <p>
+                Originale sind gespeichert; bestätigte Angaben folgen im
+                Vergleich.
+              </p>
+              <button className="text-button" onClick={() => go("Dokumente")}>
+                Unterlagen öffnen <ArrowRight />
+              </button>
+            </div>
+          )}
           <div className="planning-note">
             <Info size={19} />
             <p>
-              <strong>Ein guter Anfang.</strong> Musik ist organisiert. Outfits,
-              Styling und Catering nehmt ihr selbst in die Hand. Kosten bleiben
-              offen.
+              Musik ist organisiert. Outfits, Styling und Catering betreut ihr
+              selbst. Nicht erfasste Kosten bleiben offen.
             </p>
           </div>
         </aside>
       </div>
     </>
   );
-
+  const filteredOffers = state.offers.filter(
+    (offer) =>
+      (filter === "Alle Kategorien" || offer.category === filter) &&
+      (!search || offer.name.toLowerCase().includes(search.toLowerCase())),
+  );
+  const compared =
+    selected !== null
+      ? filteredOffers
+          .filter((offer) => selected.includes(offer.id))
+          .slice(0, 4)
+      : filteredOffers.slice(-3);
+  const offerRows: [string, keyof Offer][] = [
+    ["Paketpreis", "price"],
+    ["Preisbasis", "basis"],
+    ["Veranstaltungen", "events"],
+    ["Paket / Fassung", "packageName"],
+    ["Begleitung", "hours"],
+    ["Team", "team"],
+    ["Bearbeitete Fotos", "photos"],
+    ["Video", "video"],
+    ["Enthalten", "included"],
+    ["Ausdrücklich nicht enthalten", "excluded"],
+    ["Optionale Leistungen", "optional"],
+    ["Fahrt & Nebenkosten", "extras"],
+    ["Anzahlung", "deposit"],
+    ["Restbetrag", "balance"],
+    ["Zahlungsbedingungen", "paymentTerms"],
+    ["Zusätzliche Stunden", "extraHours"],
+    ["Lieferzeit", "delivery"],
+    ["Gültigkeit", "validity"],
+    ["Offene Fragen", "questions"],
+    ["Eure Entscheidung", "decision"],
+  ];
   const comparison = (
     <>
-      <div className="page-heading">
-        <div>
-          <span className="eyebrow">GUTE ENTSCHEIDUNGEN BRAUCHEN KLARHEIT</span>
-          <h1>Eure Dienstleister.</h1>
-          <p>
-            Leistungen verstehen. Fragen klären. Mit gutem Gefühl entscheiden.
-          </p>
+      <Title
+        title="Eure Dienstleister."
+        description="Leistungen verstehen. Fragen klären. Mit gutem Gefühl entscheiden."
+        action={
+          <Button onClick={() => setReview({})}>
+            <Plus size={17} /> Angebot hinzufügen
+          </Button>
+        }
+      />
+      <section className="panel comparison-panel">
+        <Heading
+          title="Angebote im Vergleich"
+          subtitle="Nur von euch geprüfte Angaben. Unterschiedlicher Umfang bleibt sichtbar."
+          action={
+            <Button secondary onClick={() => edit("providers")}>
+              <Plus size={16} /> Dienstleister
+            </Button>
+          }
+        />
+        <div className="table-toolbar">
+          <label>
+            Kategorie
+            <select
+              aria-label="Kategorie filtern"
+              value={filter}
+              onChange={(e) => {
+                setFilter(e.target.value);
+                setSelected(null);
+              }}
+            >
+              <option>Alle Kategorien</option>
+              {[...new Set(state.offers.map((o) => o.category))].map((c) => (
+                <option key={c}>{c}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Anbieter suchen
+            <input
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Name …"
+            />
+          </label>
         </div>
-        <Button onClick={upload}>
-          <Plus size={17} /> Angebot hinzufügen
-        </Button>
-      </div>
-      <div className="compact-summary">
-        <span>
-          <CalendarBlank /> Hochzeit <strong>2027 · Datum offen</strong>
-        </span>
-        <span>
-          <Users /> Größte Feier <strong>180–220 Gäste</strong>
-        </span>
-        <span>
-          <Wallet /> Saal <strong>1.000 € beauftragt · 500 € offen</strong>
-        </span>
-        <span>
-          Budget <strong>Noch offen</strong>
-        </span>
-      </div>
-      <div className="comparison-layout">
-        <section className="panel comparison-panel">
-          <SectionHeading
-            title="Angebote im Vergleich"
-            subtitle={
-              demo
-                ? "Erfundene Beispiele, ausschließlich zur Beurteilung des Entwurfs."
-                : "Eure vorliegenden Angebote sind noch nicht ins Dashboard übertragen."
-            }
-            action={
-              <button
-                className="text-button"
-                onClick={() => setModal("provider")}
-              >
-                <Plus /> Dienstleister
-              </button>
-            }
-          />
-          <div className="table-toolbar">
-            <label className="select-wrap">
-              <Scales size={18} />
-              <select
-                aria-label="Kategorie filtern"
-                value={filter}
-                onChange={(e) => setFilter(e.target.value)}
-              >
-                <option>Alle Kategorien</option>
-                <option>Foto & Video</option>
-                <option>Catering</option>
-                <option>Location</option>
-                <option>Musik</option>
-                <option>Sonstiges</option>
-              </select>
-              <CaretDown size={13} />
-            </label>
-            <label className="demo-toggle">
-              <input
-                type="checkbox"
-                checked={demo}
-                onChange={(e) => setDemo(e.target.checked)}
-              />
-              <span className="switch" /> Demo-Angebote zeigen
-            </label>
+        {filteredOffers.length > 0 && (
+          <div
+            className="offer-selection"
+            aria-label="Angebote für Vergleich auswählen"
+          >
+            {filteredOffers.map((offer) => (
+              <label key={offer.id}>
+                <input
+                  type="checkbox"
+                  checked={compared.some((c) => c.id === offer.id)}
+                  onChange={(e) => {
+                    const ids = compared.map((c) => c.id);
+                    if (e.target.checked && ids.length >= 4) {
+                      setNotice(
+                        "Bitte höchstens vier Angebote gleichzeitig auswählen.",
+                      );
+                      return;
+                    }
+                    setSelected(
+                      e.target.checked
+                        ? [...ids, offer.id]
+                        : ids.filter((id) => id !== offer.id),
+                    );
+                  }}
+                />
+                <span>
+                  {offer.name} · {offer.packageName || offer.category}
+                </span>
+              </label>
+            ))}
           </div>
-          {demo && (
-            <div className="demo-banner">
-              <Info size={17} />
-              <span>
-                <strong>Demo-Daten.</strong> Keine echten Anbieter, Preise oder
-                Empfehlungen. Eure Planung bleibt davon getrennt.
-              </span>
-            </div>
-          )}
+        )}
+        {compared.length ? (
           <div className="table-scroll">
-            <table>
+            <table className="live-comparison">
               <caption className="sr-only">
-                Angebotsvergleich mit Preis, Leistungen, Quellen und offenen
-                Angaben
+                Vergleich eurer bestätigten Angebote
               </caption>
               <thead>
                 <tr>
                   <th>Das ist euch wichtig</th>
-                  {visibleOffers.length
-                    ? visibleOffers.map((o) => (
-                        <th key={o.id}>
-                          <span className="provider-avatar">
-                            <Camera />
-                          </span>
-                          <strong>{o.name}</strong>
-                          <span className="table-sub">
-                            {o.demo ? "Demo · " : ""}
-                            {o.category}
-                          </span>
-                          <Badge tone="warm">
-                            {o.demo ? "Beispielangebot" : "Manuell bestätigt"}
-                          </Badge>
-                        </th>
-                      ))
-                    : [1, 2, 3].map((i) => (
-                        <th key={i}>
-                          <span className="empty-provider">0{i}</span>
-                          <strong>Platz für euer Angebot</strong>
-                          <span className="table-sub">
-                            Noch nicht übertragen
-                          </span>
-                          <button className="text-button" onClick={upload}>
-                            Hinzufügen <Plus size={14} />
-                          </button>
-                        </th>
-                      ))}
+                  {compared.map((offer) => (
+                    <th key={offer.id}>
+                      <span className="provider-avatar">
+                        <Camera />
+                      </span>
+                      <strong>{offer.name}</strong>
+                      <span className="table-sub">
+                        {state.providers.find((p) => p.id === offer.providerId)
+                          ?.name || "Nicht zugeordnet"}{" "}
+                        · Fassung{" "}
+                        {state.offers
+                          .filter(
+                            (o) =>
+                              (o.providerId &&
+                                o.providerId === offer.providerId) ||
+                              (!o.providerId && o.name === offer.name),
+                          )
+                          .findIndex((o) => o.id === offer.id) + 1}
+                      </span>
+                      <Badge tone={offer.status === "Gebucht" ? "success" : ""}>
+                        {offer.status}
+                      </Badge>
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
-                {[
-                  ["Paketpreis", "price"],
-                  ["Preisbasis", "basis"],
-                  ["Veranstaltungen", "event"],
-                  ["Begleitung", "hours"],
-                  ["Team", "team"],
-                  ["Bearbeitete Fotos", "photos"],
-                  ["Video", "video"],
-                  ["Neben- & Zusatzkosten", "extras"],
-                  ["Anzahlung", "deposit"],
-                  ["Lieferzeit", "delivery"],
-                  ["Quelle", "source"],
-                ].map(([label, key]) => (
+                {offerRows.map(([label, key]) => (
                   <tr key={key}>
                     <th scope="row">{label}</th>
-                    {visibleOffers.length
-                      ? visibleOffers.map((o) => (
-                          <td
-                            key={o.id}
-                            className={
-                              key === "price"
-                                ? "price-cell"
-                                : /nicht angegeben|offen|nicht enthalten/i.test(
-                                      String(o[key as keyof Offer]),
-                                    )
-                                  ? "uncertain"
-                                  : ""
-                            }
-                          >
-                            {key === "price"
-                              ? o.price === null
-                                ? "Nicht angegeben"
-                                : money(o.price)
-                              : String(o[key as keyof Offer])}
-                          </td>
-                        ))
-                      : [1, 2, 3].map((i) => (
-                          <td key={i} className="empty-cell">
-                            Nicht angegeben
-                          </td>
-                        ))}
+                    {compared.map((offer) => (
+                      <td
+                        key={offer.id}
+                        className={key === "price" ? "price-cell" : ""}
+                      >
+                        {key === "price" ||
+                        key === "deposit" ||
+                        key === "balance"
+                          ? price(offer[key] as number | null, offer.currency)
+                          : key === "events"
+                            ? offer.events.join(" + ") || "Nicht angegeben"
+                            : String(offer[key] || "Nicht angegeben")}
+                        {offer.evidence[key]?.length ? (
+                          <span className="table-sub">
+                            Quelle: S.{" "}
+                            {offer.evidence[key]
+                              .map((e) => e.page)
+                              .filter((v, i, list) => list.indexOf(v) === i)
+                              .join(", ")}
+                          </span>
+                        ) : null}
+                      </td>
+                    ))}
                   </tr>
                 ))}
               </tbody>
               <tfoot>
                 <tr>
-                  <th>Prüfung & offene Fragen</th>
-                  {visibleOffers.length
-                    ? visibleOffers.map((o) => (
-                        <td key={o.id}>
-                          <Button
-                            secondary
+                  <th>Prüfen & entscheiden</th>
+                  {compared.map((offer) => (
+                    <td key={offer.id}>
+                      <div className="offer-actions">
+                        <Button secondary onClick={() => setReview({ offer })}>
+                          Original & Angaben
+                        </Button>
+                        {!state.costs.some((c) => c.offerId === offer.id) && (
+                          <button
+                            className="text-button"
                             onClick={() => {
-                              setReview(o);
-                              setModal("upload");
+                              setBooking(offer);
+                              setBookingError("");
                             }}
                           >
-                            Angaben prüfen <ArrowUpRight size={15} />
-                          </Button>
-                        </td>
-                      ))
-                    : [1, 2, 3].map((i) => (
-                        <td key={i}>
-                          <span className="table-sub">
-                            Originalangebot ergänzen
-                          </span>
-                        </td>
-                      ))}
+                            Buchung bestätigen <Check size={15} />
+                          </button>
+                        )}
+                        {offer.status !== "Gebucht" && (
+                          <button
+                            className="text-button"
+                            onClick={() =>
+                              void mutate("offers", {
+                                ...offer,
+                                status:
+                                  offer.status === "Favorit"
+                                    ? "Geprüft"
+                                    : "Favorit",
+                              })
+                            }
+                          >
+                            {offer.status === "Favorit"
+                              ? "Favorit aufheben"
+                              : "Als Favorit markieren"}
+                          </button>
+                        )}
+                        <button
+                          className="text-button delete-link"
+                          onClick={() => void remove("offers", offer)}
+                        >
+                          Angebot löschen
+                        </button>
+                      </div>
+                    </td>
+                  ))}
                 </tr>
               </tfoot>
             </table>
           </div>
-          <div className="comparison-foot">
-            <WarningCircle size={18} />
-            <p>
-              Ein Paketpreis ist noch kein vollständiger Endpreis. Fehlende
-              Zusatzkosten und unterschiedliche Leistungen zuerst klären.
-            </p>
-          </div>
-        </section>
-        <aside className="review-sidebar">
-          <div className="panel review-card">
-            <span className="eyebrow">VOM DOKUMENT ZUR ENTSCHEIDUNG</span>
+        ) : (
+          <div className="empty-state">
+            <Scales size={50} weight="thin" />
             <h2>
-              Erst prüfen.
-              <br />
-              Dann vergleichen.
+              {search || filter !== "Alle Kategorien"
+                ? "Keine passenden Angebote."
+                : "Eure Angebote kommen hier zusammen."}
             </h2>
-            <div className="paper-preview" aria-hidden="true">
-              <FileText size={30} />
-              <span>EUER ANGEBOT</span>
-              <i />
-              <i />
-              <i className="short" />
-              <div>Original + eure Angaben</div>
-            </div>
-            <ol className="steps">
-              <li>
-                <span>1</span> Original hinzufügen
-              </li>
-              <li>
-                <span>2</span> Angaben manuell prüfen
-              </li>
-              <li>
-                <span>3</span> Für Vergleich bestätigen
-              </li>
-            </ol>
-            <Button onClick={upload}>
-              <UploadSimple size={17} /> Dokument öffnen
+            <p>
+              PDF, Screenshot oder Text hinzufügen. Die App liest den Inhalt
+              lokal, zeigt Fundstellen und übernimmt erst eure bestätigten
+              Angaben.
+            </p>
+            <Button secondary onClick={() => setReview({})}>
+              Erstes Angebot hinzufügen <ArrowRight size={17} />
             </Button>
-            <small>Keine automatische KI-Auswertung im Mockup.</small>
           </div>
-          <div className="panel mini-payment">
-            <span className="eyebrow">BEREITS ORGANISIERT</span>
-            <h3>Saal fürs Standesamt</h3>
-            <div>
-              <span>Beauftragt</span>
-              <strong>1.000 €</strong>
-            </div>
-            <div>
-              <span>Angezahlt</span>
-              <strong>500 €</strong>
-            </div>
-            <div>
-              <span>Noch offen</span>
-              <strong>500 €</strong>
-            </div>
-            <p>Zahlungsfrist nicht angegeben.</p>
-          </div>
-        </aside>
-      </div>
+        )}
+        <div className="comparison-foot">
+          <WarningCircle size={18} />
+          <p>
+            Fehlende Angaben bleiben unbekannt. Ein Paketpreis kann
+            unvollständig sein. Angebote werden erst nach ausdrücklicher
+            Buchungsbestätigung als beauftragte Kosten erfasst.
+          </p>
+        </div>
+      </section>
       <section className="panel provider-list">
-        <SectionHeading
+        <Heading
           title="Eure Kontakte"
-          subtitle="Neue Einträge bleiben nur während dieser Sitzung erhalten."
+          subtitle="Dienstleister, offene Gespräche und nächste Schritte."
           action={
-            <Button secondary onClick={() => setModal("provider")}>
+            <Button secondary onClick={() => edit("providers")}>
               <Plus size={16} /> Dienstleister anlegen
             </Button>
           }
         />
-        {providers.length ? (
-          providers.map((p, i) => (
-            <div className="contact-row" key={i}>
+        {state.providers.length ? (
+          state.providers.map((provider) => (
+            <div className="contact-row" key={provider.id}>
               <div className="icon-box">
                 <Buildings size={20} />
               </div>
               <div>
-                <strong>{p.name}</strong>
+                <strong>{provider.name}</strong>
                 <p>
-                  {p.category} · {p.event} · {p.status}
+                  {provider.category} ·{" "}
+                  {provider.event || "Veranstaltung offen"} · {provider.status}
                 </p>
-                {p.website && (
-                  <a href={p.website} target="_blank" rel="noreferrer">
+                {provider.website && (
+                  <a href={provider.website} target="_blank" rel="noreferrer">
                     Website öffnen <ArrowUpRight size={13} />
                   </a>
                 )}
-                {p.notes && <p>{p.notes}</p>}
+                <p>{provider.notes}</p>
+                {provider.nextAction && (
+                  <p>Nächste Aktion: {provider.nextAction}</p>
+                )}
+              </div>
+              <div className="row-actions">
+                <button
+                  className="icon-button"
+                  aria-label={`${provider.name} bearbeiten`}
+                  onClick={() => edit("providers", provider)}
+                >
+                  <PencilSimple />
+                </button>
+                <button
+                  className="icon-button"
+                  aria-label={`${provider.name} löschen`}
+                  onClick={() => void remove("providers", provider)}
+                >
+                  <Trash />
+                </button>
               </div>
             </div>
           ))
         ) : (
           <p className="empty-copy">
-            Noch keine Namen oder Kontaktdaten hinterlegt. Eure Foto- und
+            Noch keine Namen oder Kontakte erfasst. Eure Foto- und
             Videogespräche laufen bereits.
           </p>
         )}
       </section>
     </>
   );
-
-  const celebrations = (
+  const guests = state.guests.filter(
+    (g) =>
+      (!search ||
+        `${g.name} ${g.household}`
+          .toLowerCase()
+          .includes(search.toLowerCase())) &&
+      (!guestEvent ||
+        guestResponse === "Alle Rückmeldungen" ||
+        (g.attendance[guestEvent] || "Nicht eingeladen") === guestResponse),
+  );
+  const guestsView = (
     <>
-      <div className="celebration-intro">
-        <div>
-          <span className="eyebrow">BERLIN & BRANDENBURG · 2027</span>
-          <h1>
-            Viele Momente.
-            <br />
-            <em>Unsere Geschichte.</em>
-          </h1>
-          <p>
-            Vom ersten Ja bis zum letzten Tanz.
-            <br />
-            Ein Platz für alles, was euch wichtig ist.
-          </p>
-        </div>
-        <div className="celebration-seal" aria-hidden="true">
-          <Flower size={115} weight="thin" />
-          <span>S & S</span>
-        </div>
-        <div className="year-note">
-          <span>Unser Hochzeitsjahr</span>
-          <strong>2027</strong>
-          <span>Datum noch offen</span>
-        </div>
-      </div>
-      <div
-        className="celebration-tabs"
-        role="tablist"
-        aria-label="Veranstaltung auswählen"
-      >
-        {events.map((e, i) => (
-          <button
-            key={e}
-            role="tab"
-            aria-selected={event === i}
-            onClick={() => setEvent(i)}
-          >
-            <span>0{i + 1}</span>
-            <div>
-              <strong>{e}</strong>
-              <small>
-                {i === 0 ? "Saal bereits gebucht" : "Raum für eure Ideen"}
-              </small>
-            </div>
-            <ArrowDown size={18} />
-          </button>
+      <Title
+        title="Eure Lieblingsmenschen."
+        description="Personen und Haushalte zusammenhalten. Für jede Feier separat einladen und Rückmeldungen erfassen."
+        action={
+          <Button onClick={() => edit("guests")}>
+            <Plus size={17} /> Gast hinzufügen
+          </Button>
+        }
+      />
+      <div className="guest-summary">
+        {state.events.map((event) => (
+          <div className="panel" key={event.id}>
+            <h3>{event.name}</h3>
+            <strong>
+              {
+                state.guests.filter(
+                  (g) => g.attendance[event.id] === "Zugesagt",
+                ).length
+              }{" "}
+              erfasste Zusagen
+            </strong>
+            <p>
+              Plan:{" "}
+              {event.guests === null
+                ? "noch offen"
+                : event.guests + " Personen"}{" "}
+              · separat je Feier
+            </p>
+          </div>
         ))}
       </div>
-      <div className="celebration-grid">
-        <section className="event-detail panel">
-          <div className="card-top">
-            <span className="eyebrow">
-              UNSER{" "}
-              {event === 0
-                ? "JA-WORT"
-                : event === 1
-                  ? "GEMEINSAMER WEG"
-                  : "GROSSES FEST"}
-            </span>
-            <Badge tone={event === 0 ? "success" : "warm"}>
-              {event === 0 ? "Saal gebucht" : "In Planung"}
-            </Badge>
-          </div>
-          <h2>{events[event]}</h2>
-          <p>
-            {event === 0
-              ? "Ein besonderer Anfang. Der passende Raum steht schon fest."
-              : event === 1
-                ? "Eure Traditionen, eure Wünsche. Ihr bestimmt, was zu euch passt."
-                : "Gutes Essen, eure Lieblingsmenschen und eine volle Tanzfläche."}
-          </p>
-          <div className="event-facts">
-            <div>
-              <CalendarBlank />
-              <span>
-                Wann<strong>Termin noch offen</strong>
-              </span>
-            </div>
-            <div>
-              <MapPin />
-              <span>
-                Wo
-                <strong>
-                  {event === 0
-                    ? "Saal gebucht · Details fehlen"
-                    : "Berlin / Brandenburg · Ort offen"}
-                </strong>
-              </span>
-            </div>
-            <div>
-              <Users />
-              <span>
-                Wer
-                <strong>
-                  {event === 2
-                    ? "Gästezahl separat festlegen"
-                    : "Gästezahl noch offen"}
-                </strong>
-              </span>
-            </div>
-          </div>
-          <div className="event-note">
-            <Info size={18} />
-            <span>
-              {event === 0
-                ? "Zum Saal fehlen noch Name, Adresse, Termin und Zahlungsfrist."
-                : event === 1
-                  ? "Rituale und Traditionen werden individuell ergänzt. Es sind keine vorgegeben."
-                  : "180–220 Personen sind für die größte Feier geplant. Die Zuordnung ist noch offen."}
-            </span>
-          </div>
-          <Button secondary onClick={() => setSection("Aufgaben")}>
-            Nächste Schritte ansehen <ArrowRight size={16} />
-          </Button>
-        </section>
-        {event === 0 ? (
-          payment
-        ) : (
-          <div className="panel wishes-card">
-            <Flower size={38} weight="thin" />
-            <h2>Platz für eure Vorstellungen.</h2>
-            <p>
-              {event === 1
-                ? "Ablauf, Ort und persönliche Traditionen sind noch offen."
-                : "Catering organisiert ihr persönlich. Angebote, Buchung und Kosten sind noch offen."}
-            </p>
-            <Button secondary onClick={compare}>
-              Dienstleister & Angebote <ArrowRight size={16} />
-            </Button>
-          </div>
-        )}
-        <div className="panel shared-card">
-          <span className="eyebrow">VERBINDET EURE FEIERN</span>
-          <Camera size={32} weight="thin" />
-          <h3>Erinnerungen, die bleiben.</h3>
-          <p>
-            Foto und Video können mehrere Feiern abdecken. Vergleicht die
-            Angebote gemeinsam.
-          </p>
-          <button className="text-button" onClick={compare}>
-            Zum Angebotsvergleich <ArrowRight size={17} />
-          </button>
-          <div className="shared-note">
-            <MusicNotes size={19} />
-            <span>
-              Für Musik ist gesorgt.
-              <small>Preis und Zahlungsstatus offen</small>
-            </span>
-          </div>
-        </div>
-      </div>
-      <section className="panel tasks-panel">
-        <SectionHeading
-          title="Gemeinsam weiterplanen"
-          action={
-            <button
-              className="text-button"
-              onClick={() => setSection("Aufgaben")}
+      <section className="panel data-panel">
+        <div className="table-toolbar">
+          <label>
+            Person oder Haushalt suchen
+            <input
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </label>
+          <label>
+            Veranstaltung
+            <select
+              value={guestEvent}
+              onChange={(e) => setGuestEvent(e.target.value)}
             >
-              Alle Aufgaben <ArrowRight />
-            </button>
-          }
-        />
-        {taskList(true)}
+              <option value="">Alle Feiern</option>
+              {state.events.map((event) => (
+                <option value={event.id} key={event.id}>
+                  {event.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Rückmeldung
+            <select
+              value={guestResponse}
+              onChange={(e) => setGuestResponse(e.target.value)}
+            >
+              <option>Alle Rückmeldungen</option>
+              {["Nicht eingeladen", "Eingeladen", "Zugesagt", "Abgesagt"].map(
+                (o) => (
+                  <option key={o}>{o}</option>
+                ),
+              )}
+            </select>
+          </label>
+        </div>
+        <div className="table-scroll">
+          <table className="list-table">
+            <caption className="sr-only">
+              Gäste und Rückmeldungen je Veranstaltung
+            </caption>
+            <thead>
+              <tr>
+                <th>Name & Haushalt</th>
+                {state.events.map((event) => (
+                  <th key={event.id}>{event.name}</th>
+                ))}
+                <th>Essen & Hinweise</th>
+                <th>Aktionen</th>
+              </tr>
+            </thead>
+            <tbody>
+              {guests.map((guest) => (
+                <tr key={guest.id}>
+                  <th>
+                    <strong>{guest.name}</strong>
+                    <p>
+                      {guest.household || "Haushalt offen"} · {guest.type}
+                      {guest.table && " · Tisch " + guest.table}
+                    </p>
+                  </th>
+                  {state.events.map((event) => (
+                    <td key={event.id}>
+                      {guest.attendance[event.id] || "Nicht eingeladen"}
+                    </td>
+                  ))}
+                  <td>
+                    {guest.dietary || "Nicht angegeben"}
+                    {guest.notes && <p>{guest.notes}</p>}
+                  </td>
+                  <td>
+                    <button
+                      className="icon-button"
+                      aria-label={`${guest.name} bearbeiten`}
+                      onClick={() => edit("guests", guest)}
+                    >
+                      <PencilSimple />
+                    </button>
+                    <button
+                      className="icon-button"
+                      aria-label={`${guest.name} löschen`}
+                      onClick={() => void remove("guests", guest)}
+                    >
+                      <Trash />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {!guests.length && (
+          <p className="empty-copy padded">
+            Noch keine passenden Gäste erfasst. Die Planungsgröße von 180–220
+            Personen ist keine bestätigte Gästeliste.
+          </p>
+        )}
       </section>
     </>
   );
-
-  let content: ReactNode;
-  if (isCompare) content = comparison;
-  else if (section === "Übersicht") content = overview;
-  else if (section === "Veranstaltungen") content = celebrations;
-  else if (section === "Aufgaben")
-    content = (
-      <>
-        <PageTitle
-          title="Ein Schritt nach dem anderen."
-          description="Vorgeschlagene Aufgaben aus eurem bisherigen Planungsstand. Verantwortliche und Termine sind noch offen."
+  const scenario =
+    budget.fixed !== null && budget.perGuest !== null
+      ? committed + budget.fixed + scenarioGuests * budget.perGuest
+      : null;
+  const budgetView = (
+    <>
+      <Title
+        title="Ein gutes Gefühl fürs Budget."
+        description="Planungswerte, unverbindliche Angebote, beauftragte Kosten und Zahlungen bleiben getrennt."
+        action={
+          <Button onClick={() => edit("costs")}>
+            <Plus size={17} /> Kosten erfassen
+          </Button>
+        }
+      />
+      <div className="stats-grid">
+        <Stat
+          icon={Wallet}
+          label="Zielbudget"
+          value={budget.target === null ? "Noch offen" : money(budget.target)}
+          detail={
+            budget.limit === null
+              ? "Obergrenze offen"
+              : "Obergrenze " + money(budget.limit)
+          }
         />
-        <section className="panel tasks-panel">{taskList()}</section>
-        <div className="inline-note">
-          <Info /> Häkchen lassen sich ausprobieren. Änderungen werden beim
-          Neuladen zurückgesetzt.
-        </div>
-      </>
-    );
-  else if (section === "Budget")
-    content = (
-      <>
-        <PageTitle
-          title="Ein gutes Gefühl fürs Budget."
-          description="Bekannte Kosten und offene Beträge bleiben klar voneinander getrennt."
+        <Stat
+          icon={CheckCircle}
+          label="Bekannt beauftragt"
+          value={money(committed)}
+          detail={
+            unknownCommitted
+              ? `${unknownCommitted} beauftragte Beträge noch offen`
+              : "Nur verbindlich erfasste Kosten"
+          }
         />
-        <div className="stats-grid">
-          <Stat
-            icon={Wallet}
-            label="Zielbudget"
-            value="Noch offen"
-            detail="Auch die Obergrenze ist noch offen"
-          />
-          <Stat
-            icon={Checks}
-            label="Bekannt beauftragt"
-            value="1.000 €"
-            detail="Ausschließlich der gebuchte Saal"
-          />
-          <Stat
-            icon={Coins}
-            label="Bekannt gezahlt"
-            value="500 €"
-            detail="Anzahlung für den Saal"
-          />
-          <Stat
-            icon={CalendarBlank}
-            label="Bekannt offen"
-            value="500 €"
-            detail="Zahlungsfrist nicht angegeben"
-          />
-        </div>
-        <div className="budget-grid">
-          {payment}
-          <BudgetScenario />
-        </div>
-        <div className="inline-note">
-          <Info /> Musik, Outfits, Styling und Catering haben noch keine
-          erfassten Kosten. Angebote werden nicht als Buchung gezählt.
-        </div>
-      </>
-    );
-  else if (section === "Gäste")
-    content = (
-      <>
-        <PageTitle
-          title="Eure Lieblingsmenschen."
-          description="Eine gemeinsame Gästeliste. Eine eigene Rückmeldung für jede Feier."
+        <Stat
+          icon={Coins}
+          label="Bekannt gezahlt"
+          value={money(paid)}
+          detail="Zahlungen zu beauftragten Kosten"
         />
-        <div className="guests-layout">
-          <div className="panel empty-state">
-            <Users size={55} weight="thin" />
-            <h2>Jede Feier hat ihre eigene Gästeliste.</h2>
-            <p>
-              Geplant sind 180–220 Personen bei der größten Feier. Namen,
-              Haushalte und Einladungen wurden noch nicht bereitgestellt.
-            </p>
-            <div className="guest-event-list">
-              {events.map((e) => (
-                <div key={e}>
-                  <CalendarBlank size={18} />
-                  <strong>{e}</strong>
-                  <span>Gästezahl offen</span>
-                </div>
-              ))}
-            </div>
-            <Badge>Gästeverwaltung für den Ausbau vorgesehen</Badge>
-          </div>
-          <div className="panel feature-note">
-            <h3>Platz für alle Details</h3>
-            <p>Personen und Haushalte, Erwachsene, Kinder und Begleitung.</p>
-            <p>Einladung und Rückmeldung separat je Veranstaltung.</p>
-            <p>Essenswünsche, Hinweise und später die Tischzuordnung.</p>
-            <div className="inline-note">
-              <Info /> Eine Zusage gilt immer nur für die jeweilige Feier.
-            </div>
-          </div>
-        </div>
-      </>
-    );
-  else
-    content = (
-      <>
-        <PageTitle
-          title="Alles am richtigen Platz."
-          description="Angebote, Verträge und Zahlungsnachweise bei euren Dienstleistern und Feiern."
+        <Stat
+          icon={CalendarBlank}
+          label="Bekannt offen"
+          value={money(knownOpen)}
+          detail={
+            unknownBalances
+              ? "Weitere offene Beträge noch unbekannt"
+              : "Beauftragt abzüglich gezahlt"
+          }
         />
-        <section className="panel documents-panel">
-          <SectionHeading
-            title="Unterlagen in dieser Sitzung"
+      </div>
+      <div className="budget-grid">
+        {paymentCard}
+        <section className="panel scenario">
+          <Heading
+            title="Was wäre, wenn …"
+            subtitle="Gespeicherte Planungsannahmen, keine Gesamtkostenprognose."
             action={
-              <Button onClick={upload}>
-                <UploadSimple size={18} /> Dokument öffnen
-              </Button>
+              <button
+                className="text-button"
+                onClick={() => edit("settings", budget)}
+              >
+                Werte bearbeiten <PencilSimple size={15} />
+              </button>
             }
           />
-          {documents.length ? (
-            documents.map((name, i) => (
-              <div className="document-row" key={i}>
-                <FileText size={24} />
-                <div>
-                  <strong>{name}</strong>
-                  <p>
-                    Manuell geprüfte Angaben übernommen · Datei nicht dauerhaft
-                    gespeichert
-                  </p>
-                </div>
-                <Badge>Sitzung</Badge>
-              </div>
-            ))
-          ) : (
-            <div className="empty-state">
-              <FileText size={50} weight="thin" />
-              <h2>Eure Unterlagen kommen hier zusammen.</h2>
-              <p>
-                Originale lokal ansehen und Angaben manuell prüfen.
-                Dokumentenspeicher und automatische Auswertung folgen erst im
-                späteren Ausbau.
-              </p>
-              <Button secondary onClick={upload}>
-                Erstes Angebot öffnen <ArrowRight size={16} />
-              </Button>
-            </div>
-          )}
+          <div
+            className="segmented"
+            role="group"
+            aria-label="Szenario Gästezahl"
+          >
+            {[180, 200, 220].map((n) => (
+              <button
+                key={n}
+                aria-pressed={scenarioGuests === n}
+                onClick={() => setScenarioGuests(n)}
+              >
+                {n} Gäste
+              </button>
+            ))}
+          </div>
+          <p className="scenario-assumption">
+            {scenarioGuests} Gäste sind eine ausdrückliche Planungsannahme. Eure
+            gespeicherte Basisannahme: {budget.guests}.
+          </p>
+          <p>
+            Bekannt beauftragt {money(committed)} + weitere feste Kosten{" "}
+            {price(budget.fixed)} + {scenarioGuests} × {price(budget.perGuest)}{" "}
+            pro Gast.
+          </p>
+          <div className="scenario-result">
+            <span>Rechenmodell · beauftragte Kosten einmal enthalten</span>
+            <strong>
+              {scenario === null ? "Noch unvollständig" : money(scenario)}
+            </strong>
+          </div>
+          <small>
+            Weitere Fixkosten müssen zusätzlich zur bereits erfassten
+            Beauftragung eingegeben werden. Unbekannte Kosten sind nicht
+            enthalten.
+          </small>
         </section>
+      </div>
+      <section className="panel data-panel">
+        <Heading
+          title="Kosten & Zahlungen"
+          subtitle="Beträge in EUR. Gemeinsame Kosten für mehrere Feiern einmal erfassen."
+        />
+        <div className="table-scroll">
+          <table className="list-table">
+            <caption className="sr-only">
+              Gespeicherte Kosten und Zahlungen
+            </caption>
+            <thead>
+              <tr>
+                <th>Kostenposition</th>
+                <th>Status</th>
+                <th>Gesamt</th>
+                <th>Gezahlt</th>
+                <th>Frist</th>
+                <th>Aktionen</th>
+              </tr>
+            </thead>
+            <tbody>
+              {state.costs.map((cost) => (
+                <tr key={cost.id}>
+                  <th>
+                    {cost.label}
+                    <p>{cost.event || "Veranstaltung offen"}</p>
+                  </th>
+                  <td>
+                    <Badge tone={cost.stage === "Beauftragt" ? "success" : ""}>
+                      {cost.stage}
+                    </Badge>
+                  </td>
+                  <td>{price(cost.amount)}</td>
+                  <td>{price(cost.paid)}</td>
+                  <td>{dateText(cost.due)}</td>
+                  <td>
+                    <button
+                      className="icon-button"
+                      aria-label={`${cost.label} bearbeiten`}
+                      onClick={() => edit("costs", cost)}
+                    >
+                      <PencilSimple />
+                    </button>
+                    <button
+                      className="icon-button"
+                      aria-label={`${cost.label} löschen`}
+                      onClick={() => void remove("costs", cost)}
+                    >
+                      <Trash />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+      <div className="inline-note">
+        <Info />
+        <span>
+          Unbestätigte Angebotskosten erhöhen diese Beauftragung nicht. Beträge
+          für Musik, Styling und Catering bleiben unbekannt, bis ihr sie
+          ausdrücklich erfasst.
+        </span>
+      </div>
+    </>
+  );
+  const eventsView = (
+    <>
+      <Title
+        title="Drei Feiern. Eure Geschichte."
+        description="Eigene Termine, Gästegrößen und Abläufe. Rituale und Traditionen ergänzt ihr selbst."
+      />
+      <div className="event-cards">
+        {state.events.map((event, index) => (
+          <section className="panel event-detail" key={event.id}>
+            <div className="card-top">
+              <span className="event-no">0{index + 1}</span>
+              <Badge tone={event.status === "Saal gebucht" ? "success" : ""}>
+                {event.status}
+              </Badge>
+            </div>
+            <h2>{event.name}</h2>
+            <div className="event-facts">
+              <div>
+                <CalendarBlank />
+                <span>
+                  Wann<strong>{dateText(event.date)}</strong>
+                </span>
+              </div>
+              <div>
+                <MapPin />
+                <span>
+                  Wo
+                  <strong>
+                    {event.location || "Ort / Adresse noch offen"}
+                  </strong>
+                </span>
+              </div>
+              <div>
+                <Users />
+                <span>
+                  Wer
+                  <strong>
+                    {event.guests === null
+                      ? "Gästezahl noch offen"
+                      : `${event.guests} Personen geplant`}
+                  </strong>
+                </span>
+              </div>
+            </div>
+            {event.traditions && (
+              <div className="event-notes">
+                <h3>Eure Traditionen</h3>
+                <p>{event.traditions}</p>
+              </div>
+            )}
+            {event.notes && (
+              <div className="event-notes">
+                <h3>Ablauf & Notizen</h3>
+                <p>{event.notes}</p>
+              </div>
+            )}
+            <Button secondary onClick={() => edit("events", event)}>
+              Planung bearbeiten <PencilSimple size={15} />
+            </Button>
+          </section>
+        ))}
+      </div>
+      <div className="inline-note">
+        <Info />
+        180–220 Personen sind für die größte Feier geplant. Die Einzelzahlen und
+        ihre Zuordnung bleiben offen, bis ihr sie eintragt.
+      </div>
+    </>
+  );
+  const documentsView = (
+    <>
+      <Title
+        title="Alles am richtigen Platz."
+        description="Originale bleiben privat gespeichert und sind für beide Konten verfügbar."
+        action={
+          <Button onClick={() => setReview({})}>
+            <UploadSimple size={17} /> Angebot hinzufügen
+          </Button>
+        }
+      />
+      <section className="panel documents-panel">
+        <Heading
+          title="Eure Unterlagen"
+          subtitle="Neue Auswertungen erscheinen nach wenigen Sekunden automatisch."
+        />
+        {state.documents.map((doc) => (
+          <div className="document-row" key={doc.id}>
+            <FileText size={25} />
+            <div>
+              <strong>{doc.name}</strong>
+              <p>
+                {Math.ceil(doc.size / 1024)} KB · {doc.progress}
+              </p>
+              {doc.error && <p className="field-error">{doc.error}</p>}
+            </div>
+            <Badge tone={doc.status === "complete" ? "success" : "warm"}>
+              {doc.status === "complete"
+                ? "Prüfbereit"
+                : doc.status === "error"
+                  ? "Manuell prüfen"
+                  : "In Auswertung"}
+            </Badge>
+            <div className="row-actions">
+              <Button
+                secondary
+                onClick={() =>
+                  setReview({
+                    offer: state.offers.find((o) => o.documentId === doc.id),
+                    documentId: doc.id,
+                  })
+                }
+              >
+                Prüfen
+              </Button>
+              <a
+                className="icon-button"
+                aria-label={`${doc.name} herunterladen`}
+                href={`/api/documents/${doc.id}/file?download=1`}
+              >
+                <DownloadSimple size={20} />
+              </a>
+              <button
+                className="icon-button"
+                aria-label={`${doc.name} löschen`}
+                onClick={async () => {
+                  if (
+                    !window.confirm(
+                      "Originaldatei und Auswertung dauerhaft löschen?",
+                    )
+                  )
+                    return;
+                  try {
+                    await api(`/documents/${doc.id}`, { method: "DELETE" });
+                    setNotice("Dokument gelöscht.");
+                    await refresh();
+                  } catch (error) {
+                    setNotice((error as Error).message);
+                  }
+                }}
+              >
+                <Trash size={18} />
+              </button>
+            </div>
+          </div>
+        ))}
+        {!state.documents.length && (
+          <div className="empty-state">
+            <FileText size={50} weight="thin" />
+            <h2>Eure Unterlagen kommen hier zusammen.</h2>
+            <p>
+              PDF-Angebote, Bilder und Text lokal auswerten. Word- oder
+              E-Mail-Dateien bitte als PDF exportieren oder ihren Text einfügen.
+            </p>
+            <Button secondary onClick={() => setReview({})}>
+              Erstes Angebot hinzufügen <ArrowRight />
+            </Button>
+          </div>
+        )}
+      </section>
+    </>
+  );
+  let content: ReactNode = overview;
+  if (section === "Dienstleister") content = comparison;
+  if (section === "Gäste") content = guestsView;
+  if (section === "Budget") content = budgetView;
+  if (section === "Aufgaben")
+    content = (
+      <>
+        <Title
+          title="Ein Schritt nach dem anderen."
+          description="Aufgaben zuordnen, Termine festlegen und den Fortschritt gemeinsam nachhalten."
+          action={
+            <Button onClick={() => edit("tasks")}>
+              <Plus size={17} /> Aufgabe anlegen
+            </Button>
+          }
+        />
+        <section className="panel tasks-panel">{taskList()}</section>
       </>
     );
-
+  if (section === "Veranstaltungen") content = eventsView;
+  if (section === "Dokumente") content = documentsView;
+  if (section === "Gemeinsam")
+    content = <Team state={state} user={user} logout={logout} />;
   return (
     <div className="app">
       <a className="skip-link" href="#main">
@@ -970,7 +1343,7 @@ function App() {
             href="/"
             onClick={(e) => {
               e.preventDefault();
-              setSection("Übersicht");
+              go("Übersicht");
             }}
           >
             <div className="brand-icon">
@@ -997,53 +1370,67 @@ function App() {
                 className={section === label ? "active" : ""}
                 aria-current={section === label ? "page" : undefined}
                 key={label}
-                onClick={() => setSection(label)}
+                onClick={() => go(label)}
               >
                 <IconComponent
                   size={20}
                   weight={section === label ? "fill" : "regular"}
                 />
                 <span>{label}</span>
-                {label === "Dienstleister" && <span className="nav-marker" />}
               </button>
             ))}
           </nav>
           <div className="sidebar-bottom">
-            <div className="little-flower">
-              <Flower size={30} weight="thin" />
-            </div>
+            <Flower size={30} weight="thin" />
             <p>
               Ein Tag voller Liebe.
               <br />
               Ein Plan, der sich gut anfühlt.
             </p>
-            <span>Für euch zwei.</span>
+            <button className="text-button" onClick={logout}>
+              <SignOut size={15} /> Abmelden
+            </button>
           </div>
         </aside>
         <div className="main-shell">
           <header className="workspace-header">
             <div className="breadcrumb">
-              Wedding SS <span>/</span> <strong>{section}</strong>
+              Wedding SS <span>/</span>
+              <strong>{section}</strong>
             </div>
             <div className="header-end">
               <span className="region">
                 <MapPin size={15} /> Berlin & Brandenburg
               </span>
               <span className="header-year">2027</span>
-              <div
+              <button
                 className="couple-avatar"
-                title="Gemeinsame Nutzung ist für den Ausbau geplant"
+                aria-label="Gemeinsame Nutzung und Konto öffnen"
+                onClick={() => go("Gemeinsam")}
               >
-                SS
-              </div>
+                {user.name.slice(0, 2).toUpperCase()}
+              </button>
             </div>
           </header>
-          <div className="session-notice">
-            <Info size={14} />
+          <div
+            className={`session-notice ${connectionError ? "offline" : ""}`}
+            role="status"
+          >
+            {connectionError ? (
+              <WarningCircle size={15} />
+            ) : (
+              <LockKey size={15} />
+            )}
             <span>
-              Interaktiver Planungsentwurf · Änderungen nur für diese Sitzung.
-              Beim Neuladen werden sie zurückgesetzt.
+              {connectionError
+                ? `Keine Verbindung: ${connectionError} Änderungen erst nach bestätigtem Speichern übernehmen.`
+                : "Privat auf eurem Rechner gespeichert · Für euch beide synchronisiert · Keine kostenpflichtigen APIs"}
             </span>
+            {connectionError && (
+              <button className="text-button" onClick={() => void refresh()}>
+                Erneut verbinden
+              </button>
+            )}
           </div>
           <main id="main" className="main-content">
             {content}
@@ -1051,8 +1438,8 @@ function App() {
               <span>
                 Wedding SS <Heart size={12} /> Gemeinsam Richtung 2027.
               </span>
-              <button onClick={() => setModal("info")}>
-                Was funktioniert in diesem Entwurf? <ArrowUpRight size={13} />
+              <button onClick={() => go("Gemeinsam")}>
+                Gemeinsamer Zugang & Datenexport <ArrowUpRight size={13} />
               </button>
             </footer>
           </main>
@@ -1063,675 +1450,125 @@ function App() {
           <CheckCircle size={20} />
           <span>{notice}</span>
           <button aria-label="Hinweis schließen" onClick={() => setNotice("")}>
-            <X />
+            <X size={17} />
           </button>
         </div>
       )}
-      {modal && (
+      {editor && (
         <Dialog
           title={
-            modal === "upload"
-              ? "Original und Angaben prüfen"
-              : modal === "provider"
-                ? "Dienstleister anlegen"
-                : modal === "details"
-                  ? "Euer gebuchter Saal"
-                  : "Alles im Blick. Eure Planungszentrale."
+            editor.kind === "settings"
+              ? "Budget & Planungsannahmen"
+              : editor.kind === "events"
+                ? "Eure Veranstaltung"
+                : editor.record
+                  ? "Eintrag bearbeiten"
+                  : "Neuen Eintrag anlegen"
           }
-          wide={modal === "upload"}
-          onClose={() => setModal(null)}
+          onClose={() => setEditor(null)}
         >
-          {modal === "upload" ? (
-            <OfferReview
-              offer={review}
-              onSave={(offer, filename) => {
-                if (offer.demo) {
-                  notify(
-                    "Demo-Prüfung abgeschlossen. Eure echten Angebote bleiben unverändert.",
-                  );
-                } else {
-                  setOffers((previous) => [...previous, offer]);
-                  if (filename)
-                    setDocuments((previous) => [...previous, filename]);
-                  setDemo(false);
-                  setFilter("Alle Kategorien");
-                  notify(
-                    "Manuell bestätigtes Angebot für diese Sitzung übernommen.",
-                  );
+          <RecordEditor
+            kind={editor.kind}
+            record={editor.record}
+            state={state}
+            onSaved={() => void saved()}
+          />
+        </Dialog>
+      )}
+      {review && (
+        <Dialog
+          title="Original und erkannte Angaben prüfen"
+          wide
+          onClose={() => setReview(null)}
+        >
+          <OfferReview
+            offer={review.offer}
+            initialDocument={review.documentId}
+            providers={state.providers}
+            events={state.events}
+            onSaved={() => {
+              void saved();
+              setSection("Dienstleister");
+            }}
+          />
+        </Dialog>
+      )}
+      {booking && (
+        <Dialog
+          title="Buchung ausdrücklich bestätigen"
+          onClose={() => setBooking(null)}
+        >
+          <form
+            className="form-stack"
+            onSubmit={async (e) => {
+              e.preventDefault();
+              setBookingError("");
+              setBusy(true);
+              const data = Object.fromEntries(new FormData(e.currentTarget));
+              try {
+                await api(`/offers/${booking.id}/book`, {
+                  method: "POST",
+                  body: json({
+                    amount: Number(data.amount),
+                    paid: Number(data.paid),
+                    due: data.due,
+                    version: booking.version,
+                  }),
+                });
+                setBooking(null);
+                await refresh();
+                setNotice("Buchung einmal im Budget erfasst.");
+              } catch (error) {
+                setBookingError((error as Error).message);
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            <h3>{booking.name}</h3>
+            <p>
+              Prüft den tatsächlich vereinbarten Gesamtpreis inklusive
+              notwendiger Zusatzkosten. Dieser ausdrücklich bestätigte Betrag
+              wird einmal als beauftragt im Budget erfasst.
+            </p>
+            <label>
+              Verbindlicher Gesamtbetrag in EUR
+              <input
+                name="amount"
+                required
+                type="number"
+                min="0"
+                max="100000000"
+                step="0.01"
+                defaultValue={
+                  booking.currency === "EUR" && booking.basis === "Brutto"
+                    ? (booking.price ?? "")
+                    : ""
                 }
-                setModal(null);
-                setSection("Dienstleister");
-              }}
-            />
-          ) : modal === "provider" ? (
-            <form
-              className="form-stack"
-              onSubmit={(e) => {
-                e.preventDefault();
-                const data = new FormData(e.currentTarget);
-                const website = String(data.get("website") || "");
-                if (website && !/^https?:\/\//i.test(website)) return;
-                setProviders([
-                  ...providers,
-                  {
-                    name: String(data.get("name")).trim(),
-                    category: String(data.get("category")),
-                    event: String(data.get("event")),
-                    website,
-                    notes: String(data.get("notes")),
-                    status: String(data.get("status")),
-                  },
-                ]);
-                setModal(null);
-                setSection("Dienstleister");
-                notify("Dienstleister für diese Sitzung angelegt.");
-              }}
-            >
-              <p>
-                Manuelle Erfassung. Beim Neuladen wird der Eintrag
-                zurückgesetzt.
-              </p>
-              <label>
-                Name
-                <input
-                  name="name"
-                  required
-                  maxLength={100}
-                  pattern=".*\S.*"
-                  placeholder="Name des Dienstleisters"
-                />
-              </label>
-              <div className="form-grid">
-                <label>
-                  Kategorie
-                  <select name="category">
-                    <option>Foto & Video</option>
-                    <option>Catering</option>
-                    <option>Location</option>
-                    <option>Musik</option>
-                    <option>Sonstiges</option>
-                  </select>
-                </label>
-                <label>
-                  Veranstaltung
-                  <select name="event">
-                    <option>Noch offen</option>
-                    {events.map((e) => (
-                      <option key={e}>{e}</option>
-                    ))}
-                    <option>Mehrere Veranstaltungen</option>
-                  </select>
-                </label>
-              </div>
-              <label>
-                Website
-                <input name="website" type="url" placeholder="https://…" />
-              </label>
-              <label>
-                Status
-                <select name="status">
-                  <option>Gefunden</option>
-                  <option>Angefragt</option>
-                  <option>Im Gespräch</option>
-                  <option>Angebot erhalten</option>
-                  <option>Favorit</option>
-                  <option>Gebucht</option>
-                  <option>Abgesagt</option>
-                </select>
-              </label>
-              <label>
-                Notizen
-                <textarea
-                  name="notes"
-                  placeholder="Eindruck, Kontakt, nächste Aktion …"
-                  rows={3}
-                />
-              </label>
-              <Button type="submit">
-                Für diese Sitzung anlegen <Check size={17} />
-              </Button>
-            </form>
-          ) : modal === "details" ? (
-            <div className="detail-content">
-              <Badge tone="success">Saal gebucht</Badge>
-              <h3>Standesamtliche Zeremonie</h3>
-              <dl>
-                <dt>Vereinbarter Gesamtpreis</dt>
-                <dd>1.000 €</dd>
-                <dt>Bereits angezahlt</dt>
-                <dd>500 €</dd>
-                <dt>Verbleibender Betrag</dt>
-                <dd>500 €</dd>
-                <dt>Name & Adresse</dt>
-                <dd>Nicht angegeben</dd>
-                <dt>Termin</dt>
-                <dd>Nicht angegeben</dd>
-                <dt>Zahlungsfrist</dt>
-                <dd>Nicht angegeben</dd>
-              </dl>
-              <div className="inline-note">
-                <Info /> Die Beträge beziehen sich ausschließlich auf den Saal.
-                Weitere Hochzeitskosten sind noch nicht erfasst.
-              </div>
-            </div>
-          ) : (
-            <div className="info-content">
-              <p>
-                Ihr habt Variante A „Alles im Blick“ als Grundlage gewählt. Ihr
-                könnt die Navigation, Aufgaben, Veranstaltungen, Budgetszenarien
-                und manuelle Angebotserfassung ausprobieren.
-              </p>
-              <div className="inline-note">
-                <Info />
-                <span>
-                  Keine dauerhafte Speicherung, kein Benutzerkonto und keine
-                  Zusammenarbeit. Dateien bleiben lokal im Browser. Es gibt
-                  keine KI- oder OCR-Auswertung. Demo-Angebote sind ausdrücklich
-                  gekennzeichnet.
-                </span>
-              </div>
-            </div>
-          )}
+              />
+            </label>
+            <label>
+              Bereits gezahlt in EUR (0 ausdrücklich eintragen)
+              <input name="paid" required type="number" min="0" step="0.01" />
+            </label>
+            <label>
+              Zahlungsfrist
+              <input name="due" type="date" />
+            </label>
+            <label className="confirmation">
+              <input type="checkbox" required />
+              <span>
+                Ich bestätige die verbindliche Buchung und die Beträge in EUR.
+                Fehlende Zusatzkosten habe ich geklärt.
+              </span>
+            </label>
+            <ErrorMessage message={bookingError} />
+            <Button disabled={busy} type="submit">
+              Buchung im Budget speichern
+            </Button>
+          </form>
         </Dialog>
       )}
     </div>
   );
 }
-
-function Stat({
-  icon: IconComponent,
-  label,
-  value,
-  detail,
-}: {
-  icon: Icon;
-  label: string;
-  value: string;
-  detail: string;
-}) {
-  return (
-    <div className="stat">
-      <div className="stat-label">
-        <IconComponent size={18} />
-        <span>{label}</span>
-      </div>
-      <strong className={value === "Noch offen" ? "open-value" : ""}>
-        {value}
-      </strong>
-      <p>{detail}</p>
-    </div>
-  );
-}
-function PageTitle({
-  title,
-  description,
-}: {
-  title: string;
-  description: string;
-}) {
-  return (
-    <div className="page-heading">
-      <div>
-        <h1>{title}</h1>
-        <p>{description}</p>
-      </div>
-    </div>
-  );
-}
-
-function BudgetScenario() {
-  const [guests, setGuests] = useState(200);
-  const [fixed, setFixed] = useState("");
-  const [perGuest, setPerGuest] = useState("");
-  const complete =
-    fixed !== "" &&
-    perGuest !== "" &&
-    Number(fixed) >= 0 &&
-    Number(perGuest) >= 0 &&
-    Number.isFinite(Number(fixed) + guests * Number(perGuest));
-  return (
-    <section className="panel scenario">
-      <SectionHeading
-        title="Was wäre, wenn …"
-        subtitle="Ein Rechenbeispiel für eure spätere Budgetplanung."
-      />
-      <div
-        className="segmented"
-        role="group"
-        aria-label="Gästezahl für Szenario"
-      >
-        {[180, 200, 220].map((n) => (
-          <button
-            key={n}
-            aria-pressed={guests === n}
-            onClick={() => setGuests(n)}
-          >
-            {n} Gäste
-          </button>
-        ))}
-      </div>
-      <p className="scenario-assumption">
-        {guests} Gäste als ausdrückliche Planungsannahme, keine bestätigte
-        Gästeliste.
-      </p>
-      <div className="form-grid">
-        <label>
-          Weitere feste Kosten (€)
-          <input
-            type="number"
-            min="0"
-            step="0.01"
-            placeholder="Noch offen"
-            value={fixed}
-            onChange={(e) => setFixed(e.target.value)}
-          />
-        </label>
-        <label>
-          Kosten pro Gast (€)
-          <input
-            type="number"
-            min="0"
-            step="0.01"
-            placeholder="Noch offen"
-            value={perGuest}
-            onChange={(e) => setPerGuest(e.target.value)}
-          />
-        </label>
-      </div>
-      <div className="scenario-result">
-        <span>1.000 € Saal + weitere Fixkosten + {guests} × Kosten/Gast</span>
-        <strong>
-          {complete
-            ? money(1000 + Number(fixed) + guests * Number(perGuest))
-            : "Noch unvollständig"}
-        </strong>
-      </div>
-      <small>
-        Rechenmodell nur für diese Sitzung. Enthält die Saalkosten einmal.
-        Weitere Kosten müssen selbst ergänzt werden; dies ist keine
-        Gesamtkostenprognose.
-      </small>
-    </section>
-  );
-}
-
-function Dialog({
-  title,
-  children,
-  onClose,
-  wide,
-}: {
-  title: string;
-  children: ReactNode;
-  onClose: () => void;
-  wide?: boolean;
-}) {
-  const ref = useRef<HTMLDialogElement>(null);
-  useEffect(() => {
-    const el = ref.current;
-    const previous = document.activeElement as HTMLElement | null;
-    el?.showModal();
-    return () => {
-      el?.close();
-      previous?.focus();
-    };
-  }, []);
-  return (
-    <dialog
-      ref={ref}
-      className={`dialog ${wide ? "wide" : ""}`}
-      onCancel={onClose}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) {
-          const box = e.currentTarget.getBoundingClientRect();
-          if (
-            e.clientX < box.left ||
-            e.clientX > box.right ||
-            e.clientY < box.top ||
-            e.clientY > box.bottom
-          )
-            onClose();
-        }
-      }}
-    >
-      <div className="dialog-heading">
-        <h2>{title}</h2>
-        <button
-          className="icon-button"
-          aria-label="Dialog schließen"
-          onClick={onClose}
-        >
-          <X size={22} />
-        </button>
-      </div>
-      {children}
-    </dialog>
-  );
-}
-
-function OfferReview({
-  offer,
-  onSave,
-}: {
-  offer: Offer | null;
-  onSave: (offer: Offer, filename: string) => void;
-}) {
-  const [file, setFile] = useState<File | null>(null);
-  const [url, setUrl] = useState("");
-  const [text, setText] = useState("");
-  const [error, setError] = useState("");
-  const [mode, setMode] = useState<"file" | "text">("file");
-  useEffect(() => {
-    if (
-      !file ||
-      (!file.type.startsWith("image/") && file.type !== "application/pdf")
-    ) {
-      setUrl("");
-      return;
-    }
-    const objectUrl = URL.createObjectURL(file);
-    setUrl(objectUrl);
-    return () => URL.revokeObjectURL(objectUrl);
-  }, [file]);
-  const receive = async (incoming?: File) => {
-    setError("");
-    if (!incoming) return;
-    if (incoming.size > 15 * 1024 * 1024) {
-      setError(
-        "Die Datei ist größer als 15 MB. Bitte eine kleinere Datei oder eingefügten Text verwenden.",
-      );
-      return;
-    }
-    if (
-      ![
-        "image/png",
-        "image/jpeg",
-        "image/webp",
-        "application/pdf",
-        "text/plain",
-      ].includes(incoming.type)
-    ) {
-      setError(
-        "Dieses Dateiformat wird hier nicht unterstützt. Bitte PDF, PNG, JPG, WebP oder TXT nutzen. E-Mail-, Word- und andere Anhänge können als PDF exportiert oder als Text eingefügt werden.",
-      );
-      return;
-    }
-    setFile(incoming);
-    if (incoming.type === "text/plain") setText(await incoming.text());
-  };
-  const defaultText =
-    "DEMO-ANGEBOT · ERFUNDENES BEISPIEL\n\n" +
-    (offer
-      ? `${offer.name}\nVeranstaltung: ${offer.event}\nPaketpreis: ${offer.price === null ? "Nicht angegeben" : money(offer.price)} (${offer.basis})\nBegleitung: ${offer.hours}\nTeam: ${offer.team}\nFotos: ${offer.photos}\nVideo: ${offer.video}\nZusatzkosten: ${offer.extras}\nAnzahlung: ${offer.deposit}\nLieferzeit: ${offer.delivery}\n\nDas ist kein echtes Angebot. Quelle: ${offer.source}`
-      : "");
-  return (
-    <>
-      <div className="review-notice">
-        <Info size={19} />
-        <span>
-          {offer?.demo
-            ? "Demo-Prüfansicht mit erfundenem Dokument. Alle Angaben sind Beispieldaten."
-            : "Manuelle Prüfung: Es findet keine automatische KI- oder OCR-Auswertung statt. Original öffnen und Angaben selbst übertragen."}
-        </span>
-      </div>
-      <div className="review-layout">
-        <section className="original-pane">
-          <div className="pane-title">
-            <FileText size={18} />
-            <strong>
-              {offer?.demo ? "Demo-Original · Seite 1" : "Euer Original"}
-            </strong>
-            <Badge>Lokal</Badge>
-          </div>
-          {!offer?.demo && (
-            <div className="segmented">
-              <button
-                aria-pressed={mode === "file"}
-                onClick={() => setMode("file")}
-              >
-                Datei öffnen
-              </button>
-              <button
-                aria-pressed={mode === "text"}
-                onClick={() => setMode("text")}
-              >
-                Text einfügen
-              </button>
-            </div>
-          )}
-          {offer?.demo ? (
-            <pre className="document-text">{defaultText}</pre>
-          ) : mode === "text" ? (
-            <label className="paste-label">
-              Angebotstext
-              <textarea
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-                placeholder="Text aus eurem Angebot hier einfügen …"
-                rows={17}
-              />
-            </label>
-          ) : (
-            <>
-              <label
-                className="dropzone"
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  void receive(e.dataTransfer.files[0]);
-                }}
-              >
-                <UploadSimple size={32} />
-                <strong>
-                  {file ? file.name : "Euer Angebot hier ablegen"}
-                </strong>
-                <span>oder Datei auswählen</span>
-                <small>PDF, PNG, JPG, WebP, TXT · max. 15 MB</small>
-                <input
-                  type="file"
-                  aria-label="Angebotsdatei auswählen"
-                  accept=".pdf,.png,.jpg,.jpeg,.webp,.txt"
-                  onChange={(e) => void receive(e.target.files?.[0])}
-                />
-              </label>
-              {error && (
-                <p className="field-error" role="alert">
-                  {error}
-                </p>
-              )}
-              {url &&
-                (file?.type === "application/pdf" ? (
-                  <iframe
-                    title="Lokale PDF-Vorschau"
-                    src={url}
-                    className="file-preview"
-                  />
-                ) : (
-                  <img
-                    className="file-preview"
-                    src={url}
-                    alt="Lokal geöffnetes Originalangebot"
-                  />
-                ))}
-              {file?.type === "text/plain" && (
-                <pre className="document-text">{text}</pre>
-              )}
-            </>
-          )}
-          <small className="privacy-note">
-            Dateien werden in diesem Entwurf nicht hochgeladen oder dauerhaft
-            gespeichert. Gescannte PDFs sind anschaubar; Texterkennung ist noch
-            nicht angebunden.
-          </small>
-        </section>
-        <form
-          className="review-form form-stack"
-          onSubmit={(e) => {
-            e.preventDefault();
-            const data = new FormData(e.currentTarget);
-            const price = String(data.get("price") || "");
-            const source = String(data.get("source") || "").trim();
-            const note = String(data.get("notes") || "").trim();
-            onSave(
-              {
-                id: String(Date.now()),
-                name: String(data.get("name")).trim(),
-                category: String(data.get("category")),
-                event: String(data.get("event")),
-                price: price === "" ? null : Number(price),
-                basis: String(data.get("basis")),
-                hours:
-                  String(data.get("hours") || "").trim() || "Nicht angegeben",
-                team: offer?.team || "Nicht angegeben",
-                photos: offer?.photos || "Nicht angegeben",
-                video:
-                  String(data.get("video") || "").trim() || "Nicht angegeben",
-                extras: note || "Nicht angegeben",
-                deposit:
-                  String(data.get("deposit") || "").trim() || "Nicht angegeben",
-                delivery: offer?.delivery || "Nicht angegeben",
-                source:
-                  source ||
-                  (mode === "file" && file
-                    ? `${file.name} · manuell erfasst`
-                    : mode === "text" && text
-                      ? "Eingefügter Text · manuell erfasst"
-                      : "Manuelle Eingabe"),
-                demo: !!offer?.demo,
-              },
-              mode === "file" ? file?.name || "" : "",
-            );
-          }}
-        >
-          <div className="pane-title">
-            <ClipboardText size={18} />
-            <strong>Von euch bestätigte Angaben</strong>
-          </div>
-          <label>
-            Anbieter
-            <input
-              name="name"
-              required
-              maxLength={100}
-              pattern=".*\S.*"
-              defaultValue={offer?.name}
-              placeholder="Name aus dem Angebot"
-            />
-          </label>
-          <div className="form-grid">
-            <label>
-              Kategorie
-              <select
-                name="category"
-                defaultValue={offer?.category || "Foto & Video"}
-              >
-                <option>Foto & Video</option>
-                <option>Catering</option>
-                <option>Location</option>
-                <option>Musik</option>
-                <option>Sonstiges</option>
-              </select>
-            </label>
-            <label>
-              Veranstaltung
-              <select
-                name="event"
-                defaultValue={offer?.event || "Nicht angegeben"}
-              >
-                <option>Nicht angegeben</option>
-                {events.map((e) => (
-                  <option key={e}>{e}</option>
-                ))}
-                <option>Standesamt + Reception</option>
-                <option>Alle drei Feiern</option>
-              </select>
-            </label>
-          </div>
-          <div className="form-grid">
-            <label>
-              Paketgesamtpreis (€)
-              <input
-                name="price"
-                type="number"
-                min="0"
-                step="0.01"
-                defaultValue={offer?.price ?? ""}
-                placeholder="Nicht angegeben"
-              />
-            </label>
-            <label>
-              Preisbasis
-              <select
-                name="basis"
-                defaultValue={offer?.basis || "Nicht angegeben"}
-              >
-                <option>Nicht angegeben</option>
-                <option>Brutto</option>
-                <option>Netto</option>
-              </select>
-            </label>
-          </div>
-          <label>
-            Dauer der Begleitung
-            <input
-              name="hours"
-              defaultValue={offer?.hours}
-              placeholder="Nicht angegeben"
-            />
-          </label>
-          <label>
-            Video: Umfang oder Ausschluss
-            <input
-              name="video"
-              defaultValue={offer?.video}
-              placeholder="Nicht angegeben"
-            />
-          </label>
-          <label>
-            Anzahlung & Zahlungsbedingungen
-            <input
-              name="deposit"
-              defaultValue={offer?.deposit}
-              placeholder="Nicht angegeben"
-            />
-          </label>
-          <label>
-            Zusatzkosten, Ausschlüsse & offene Fragen
-            <textarea
-              name="notes"
-              rows={2}
-              defaultValue={offer?.extras}
-              placeholder="Fehlendes als nicht angegeben behandeln"
-            />
-          </label>
-          <label>
-            Quelle: Seite und Textstelle
-            <input
-              name="source"
-              defaultValue={offer?.source}
-              placeholder="z. B. Seite 2, Absatz Leistungsumfang"
-            />
-          </label>
-          <label className="confirmation">
-            <input type="checkbox" required />
-            <span>
-              Ich habe die Angaben geprüft. Fehlende Kosten bleiben offen;
-              optionale Extras sind nicht im Paketpreis enthalten.
-            </span>
-          </label>
-          <Button type="submit">
-            <Check size={17} />{" "}
-            {offer?.demo
-              ? "Demo-Prüfung abschließen"
-              : "Für den Vergleich übernehmen"}
-          </Button>
-          <small>
-            Keine Buchung. Keine automatische Budgetübernahme. Nur für diese
-            Sitzung.
-          </small>
-        </form>
-      </div>
-    </>
-  );
-}
-export default App;

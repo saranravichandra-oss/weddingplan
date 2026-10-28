@@ -4,3 +4,8 @@ test-results/
 playwright-report/
 .env*
 !.env.example
+.wedding-data/
+.wedding-backups/
+.test-data*/
+*.traineddata
+*.traineddata.gz

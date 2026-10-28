@@ -1,0 +1,810 @@
+.button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+  transform: none;
+}
+.account-page {
+  min-height: 100dvh;
+  padding: 42px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 28px;
+  background: var(--page);
+}
+.account-brand {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  font:
+    31px Georgia,
+    serif;
+  color: var(--accent);
+}
+.account-panel {
+  width: 100%;
+  max-width: 500px;
+  padding: 35px;
+}
+.account-panel h1 {
+  font-size: 30px;
+  margin: 15px 0;
+}
+.account-panel > p {
+  font-size: 13px;
+  line-height: 1.8;
+  margin-bottom: 25px;
+}
+.account-panel > .text-button {
+  margin-top: 23px;
+}
+.account-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding-top: 23px;
+  margin-top: 25px;
+  border-top: 1px solid var(--line);
+  font-size: 11px;
+  line-height: 1.8;
+  color: var(--muted);
+}
+.account-panel .form-stack label {
+  font-size: 12px;
+}
+.account-panel .form-stack input {
+  font-size: 14px;
+  padding: 12px;
+}
+.account-panel .form-stack .button {
+  width: 100%;
+  font-size: 13px;
+}
+.account-note svg {
+  margin-top: 3px;
+}
+.couple-avatar {
+  cursor: pointer;
+  color: var(--accent);
+}
+.sidebar-bottom .text-button {
+  margin-top: 20px;
+}
+.session-notice.offline {
+  background: #fff0dd;
+  color: #8b5b25;
+  align-items: flex-start;
+}
+.session-notice.offline > .text-button {
+  font-size: 11px;
+  margin-left: auto;
+}
+.actual-payment-progress {
+  width: 100%;
+  height: 8px;
+  border: 0;
+  appearance: none;
+  background: #e9efdf;
+  border-radius: 20px;
+  display: block;
+  margin: 22px 0 15px;
+  overflow: hidden;
+}
+.actual-payment-progress::-webkit-progress-bar {
+  background: #e9efdf;
+  border-radius: 20px;
+}
+.actual-payment-progress::-webkit-progress-value {
+  background: #8b9f6c;
+  border-radius: 20px;
+}
+.actual-payment-progress::-moz-progress-bar {
+  background: #8b9f6c;
+}
+.pending-documents {
+  padding: 22px;
+}
+.pending-documents h3 {
+  font-size: 15px;
+}
+.pending-documents p {
+  font-size: 12px;
+  margin: 12px 0;
+}
+.row-actions {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: auto;
+}
+.row-actions .icon-button > svg {
+  width: 18px;
+  height: 18px;
+}
+.contact-row > div:nth-child(2) {
+  flex: 1;
+  min-width: 0;
+}
+.contact-row strong,
+.document-row strong {
+  overflow-wrap: anywhere;
+}
+.task .icon-button {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  color: var(--muted);
+}
+.task > .task-check {
+  flex-shrink: 0;
+}
+.task strong {
+  line-height: 1.7;
+}
+.task .badge {
+  max-width: 80px;
+}
+.task .task-meta {
+  overflow-wrap: anywhere;
+}
+.task-check:before {
+  pointer-events: none;
+}
+.comparison-panel > .section-heading {
+  padding: 23px 23px 0;
+}
+.table-toolbar > label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--muted);
+  min-width: 150px;
+  flex: 1;
+  max-width: 320px;
+}
+.table-toolbar > label input,
+.table-toolbar > label select {
+  font-size: 12px;
+  padding: 10px;
+}
+.offer-selection {
+  padding: 0 23px 19px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 20px;
+}
+.offer-selection label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  line-height: 1.6;
+  font-size: 11px;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.offer-selection input {
+  margin: 0;
+}
+.live-comparison {
+  table-layout: auto;
+  min-width: 700px;
+}
+.live-comparison th,
+.live-comparison td {
+  min-width: 165px;
+  max-width: 300px;
+  white-space: pre-line;
+}
+.live-comparison thead th:first-child {
+  min-width: 150px;
+}
+.live-comparison td {
+  font-size: 12px;
+}
+.live-comparison td.price-cell {
+  font-size: 22px;
+}
+.live-comparison .table-sub {
+  font-size: 10px;
+  white-space: normal;
+}
+.offer-actions {
+  display: flex;
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 13px;
+}
+.offer-actions .button {
+  font-size: 11px;
+}
+.offer-actions .text-button {
+  font-size: 11px;
+  white-space: normal;
+  text-align: left;
+}
+.delete-link {
+  color: #945a50;
+}
+.data-panel {
+  padding: 23px;
+  margin-top: 26px;
+  overflow: hidden;
+}
+.data-panel > .table-toolbar {
+  padding: 0 0 22px;
+}
+.list-table {
+  min-width: 700px;
+  table-layout: auto;
+  font-size: 12px;
+}
+.list-table thead th,
+.list-table tbody th,
+.list-table tbody td {
+  padding: 17px 14px;
+  vertical-align: top;
+  min-width: 95px;
+}
+.list-table thead th {
+  font-size: 11px;
+  width: auto;
+  vertical-align: middle;
+}
+.list-table tbody th {
+  font-size: 12px;
+  font-weight: 500;
+  color: #4c5a43;
+  max-width: 240px;
+}
+.list-table tbody td {
+  font-size: 12px;
+  max-width: 260px;
+  overflow-wrap: anywhere;
+}
+.list-table p {
+  font-size: 10px;
+  line-height: 1.8;
+  margin-top: 4px;
+}
+.list-table .icon-button {
+  height: 31px;
+  width: 31px;
+}
+.list-table .icon-button svg {
+  height: 16px;
+  width: 16px;
+}
+.data-panel .table-scroll {
+  margin: 0 -23px -23px;
+}
+.guest-summary {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 19px;
+  margin-bottom: 25px;
+}
+.guest-summary > div {
+  padding: 23px;
+}
+.guest-summary h3 {
+  font-size: 15px;
+  margin-bottom: 18px;
+}
+.guest-summary strong {
+  font-size: 25px;
+  font-weight: 500;
+}
+.guest-summary p {
+  font-size: 11px;
+  margin-top: 9px;
+}
+.event-cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 21px;
+}
+.event-cards .event-detail {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.event-cards .event-detail > .button {
+  margin-top: auto;
+}
+.event-cards .card-top .event-no {
+  margin: 0;
+}
+.event-cards h2 {
+  font-size: 26px;
+  overflow-wrap: anywhere;
+}
+.event-notes {
+  border-top: 1px solid var(--line);
+  padding-top: 17px;
+  margin-bottom: 24px;
+}
+.event-notes h3 {
+  font-size: 13px;
+  margin-bottom: 9px;
+}
+.event-notes p {
+  font-size: 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.event-facts strong {
+  overflow-wrap: anywhere;
+  line-height: 1.7;
+}
+.event-facts span {
+  font-size: 10px;
+}
+.team-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 23px;
+}
+.team-card {
+  padding: 27px;
+  min-width: 0;
+}
+.team-card > p {
+  font-size: 12px;
+  margin: 18px 0;
+  line-height: 1.9;
+}
+.team-card > .button {
+  margin-top: 13px;
+  font-size: 11px;
+}
+.team-card .form-stack {
+  margin-bottom: 20px;
+}
+.member-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  padding: 16px 0;
+}
+.member-row > div:nth-child(2) {
+  flex: 1;
+  min-width: 0;
+}
+.member-row strong {
+  font-size: 13px;
+}
+.member-row p {
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+.member-row .badge {
+  font-size: 10px;
+}
+.network-address {
+  display: block;
+  background: var(--soft);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 12px;
+  margin: 15px 0;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.invitation-box {
+  margin-top: 23px;
+  border-top: 1px solid var(--line);
+  padding-top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+.invitation-box > label {
+  font-size: 11px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.invitation-box input {
+  font-size: 11px;
+}
+.invitation-box .button {
+  align-self: flex-start;
+}
+.event-checkboxes {
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 13px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.event-checkboxes legend {
+  font-size: 11px;
+  font-weight: 550;
+  padding: 0 5px;
+}
+.event-checkboxes > label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-direction: row;
+  font-size: 11px;
+  font-weight: 400;
+}
+.field-source {
+  font-size: 10px;
+  font-weight: 400;
+  border-left: 2px solid #d9e3cf;
+  padding-left: 9px;
+  color: #758665;
+  line-height: 1.7;
+}
+.field-source summary {
+  cursor: pointer;
+}
+.field-source button {
+  display: block;
+  border: 0;
+  background: #f5f8ef;
+  margin-top: 7px;
+  text-align: left;
+  padding: 8px;
+  font-size: 10px;
+  color: #60774c;
+  width: 100%;
+  overflow-wrap: anywhere;
+  line-height: 1.7;
+}
+.unknown-source {
+  font-size: 9px;
+  font-weight: 400;
+}
+.page-selector {
+  margin-top: 20px;
+}
+.page-selector label {
+  font-size: 11px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.document-analysis-state {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  flex-direction: column;
+  margin: 18px 0;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.document-analysis-state .badge {
+  white-space: normal;
+  line-height: 1.7;
+}
+.analysis-warnings {
+  padding: 15px;
+  background: #fbf4e5;
+  border: 1px solid #efe0c2;
+  border-radius: 7px;
+  margin-top: 17px;
+}
+.analysis-warnings p {
+  font-size: 11px;
+  color: #8a703d;
+  margin: 6px 0;
+}
+.review-form .pane-title {
+  margin-bottom: 5px;
+}
+.review-form .field-source {
+  margin-top: 2px;
+}
+.document-text {
+  max-height: 500px;
+  overflow: auto;
+  min-height: 180px;
+}
+.document-text mark {
+  background: #f6e5a4;
+  color: #5e552e;
+}
+.original-pane .file-preview {
+  height: 350px;
+}
+.original-pane .privacy-note {
+  font-size: 11px;
+}
+.review-form {
+  gap: 18px;
+}
+.form-stack label input[type="checkbox"] {
+  align-self: flex-start;
+}
+.padded {
+  padding: 20px;
+}
+.team-card code {
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+.review-layout > .original-pane {
+  align-self: start;
+  position: sticky;
+  top: 0;
+  max-height: 75dvh;
+  overflow-y: auto;
+  padding-right: 8px;
+}
+.review-form .confirmation {
+  font-size: 11px;
+}
+.review-form > .button {
+  white-space: normal;
+  font-size: 12px;
+  line-height: 1.6;
+}
+@media (max-width: 1100px) {
+  .event-cards {
+    grid-template-columns: 1fr;
+  }
+  .event-cards .event-detail {
+    padding: 25px;
+  }
+  .guest-summary {
+    gap: 12px;
+  }
+  .guest-summary > div {
+    padding: 19px;
+  }
+  .guest-summary h3 {
+    font-size: 12px;
+  }
+  .team-grid {
+    grid-template-columns: 1fr;
+  }
+  .task .badge {
+    display: none;
+  }
+  .task .icon-button {
+    width: 28px;
+  }
+  .guest-summary strong {
+    font-size: 22px;
+  }
+}
+@media (max-width: 800px) {
+  .sidebar nav {
+    gap: 5px;
+  }
+  .original-pane {
+    position: static !important;
+    max-height: none !important;
+    padding-right: 0 !important;
+  }
+  .guest-summary {
+    grid-template-columns: 1fr;
+  }
+  .guest-summary > div {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 10px;
+  }
+  .guest-summary h3 {
+    font-size: 15px;
+    margin: 0;
+  }
+  .guest-summary strong {
+    font-size: 20px;
+  }
+  .guest-summary p {
+    grid-column: 1/-1;
+    margin: 0;
+  }
+  .account-panel {
+    padding: 29px;
+  }
+  .data-panel {
+    padding: 20px;
+  }
+  .data-panel .table-scroll {
+    margin: 0 -20px -20px;
+  }
+  .team-card {
+    padding: 25px;
+  }
+  .document-row {
+    align-items: flex-start;
+  }
+  .document-row > .row-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+  .document-row .badge {
+    font-size: 10px;
+  }
+  .scenario .section-heading {
+    flex-wrap: wrap;
+  }
+}
+@media (max-width: 540px) {
+  .sidebar nav > button {
+    max-width: 49px;
+  }
+  .sidebar nav > button > span {
+    font-size: 7px;
+  }
+  .sidebar nav > button > svg {
+    width: 18px;
+    height: 18px;
+  }
+  .sidebar nav {
+    height: 67px;
+  }
+  .session-notice {
+    font-size: 9px;
+    align-items: flex-start;
+    line-height: 1.8;
+  }
+  .account-page {
+    padding: 25px 15px;
+    justify-content: flex-start;
+    gap: 25px;
+  }
+  .account-brand {
+    font-size: 28px;
+    margin-top: 20px;
+  }
+  .account-panel {
+    padding: 25px 21px;
+  }
+  .account-panel h1 {
+    font-size: 27px;
+    line-height: 1.4;
+  }
+  .account-panel .eyebrow {
+    font-size: 8px;
+  }
+  .account-panel > p {
+    font-size: 12px;
+  }
+  .account-note {
+    font-size: 10px;
+  }
+  .account-panel .form-stack {
+    gap: 19px;
+  }
+  .account-panel .form-stack label {
+    font-size: 12px;
+  }
+  .task {
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .task > div {
+    flex-basis: calc(100% - 40px);
+  }
+  .task > .icon-button {
+    width: 40px;
+    height: 34px;
+    margin-top: 2px;
+  }
+  .task > .icon-button:first-of-type {
+    margin-left: 27px;
+  }
+  .task-check {
+    padding-top: 4px;
+  }
+  .task .task-meta {
+    font-size: 10px;
+  }
+  .offer-selection {
+    padding: 0 17px 18px;
+    gap: 14px;
+  }
+  .offer-selection label {
+    font-size: 11px;
+    line-height: 1.8;
+  }
+  .table-toolbar > label {
+    min-width: 120px;
+    flex: 1;
+    max-width: none;
+  }
+  .table-toolbar > label input,
+  .table-toolbar > label select {
+    font-size: 12px;
+  }
+  .comparison-panel > .section-heading {
+    padding: 20px 17px 0;
+    flex-direction: column;
+    gap: 17px;
+  }
+  .comparison-panel .section-heading .button {
+    font-size: 11px;
+    min-height: 41px;
+  }
+  .offer-actions .button {
+    min-height: 42px;
+  }
+  .offer-actions .text-button {
+    min-height: 30px;
+  }
+  .list-table .icon-button {
+    height: 40px;
+    width: 37px;
+  }
+  .team-card {
+    padding: 23px 19px;
+  }
+  .team-card .section-heading h2 {
+    font-size: 20px;
+  }
+  .team-card > p {
+    font-size: 12px;
+  }
+  .member-row p {
+    font-size: 10px;
+  }
+  .team-grid {
+    gap: 19px;
+  }
+  .guest-summary {
+    margin-bottom: 21px;
+  }
+  .data-panel {
+    padding: 19px 17px;
+  }
+  .data-panel .table-scroll {
+    margin: 0 -17px -19px;
+  }
+  .pending-documents {
+    padding: 22px;
+  }
+  .pending-documents > p {
+    font-size: 12px;
+  }
+  .event-cards .event-detail {
+    padding: 23px;
+  }
+  .event-cards h2 {
+    font-size: 30px;
+  }
+  .event-cards .event-detail > .button {
+    font-size: 12px;
+  }
+  .original-pane .file-preview {
+    height: 320px;
+  }
+  .review-form input,
+  .review-form textarea,
+  .review-form select {
+    font-size: 12px;
+  }
+  .review-form .unknown-source {
+    font-size: 10px;
+  }
+  .field-source,
+  .field-source button {
+    font-size: 11px;
+  }
+  .review-form .form-grid {
+    grid-template-columns: 1fr;
+  }
+  .event-checkboxes > label {
+    font-size: 12px;
+  }
+  .review-notice {
+    font-size: 11px;
+  }
+  .page-footer button {
+    min-height: 30px;
+  }
+  .row-actions .icon-button {
+    min-width: 40px;
+    min-height: 40px;
+  }
+}

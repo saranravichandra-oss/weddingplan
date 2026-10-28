@@ -5,112 +5,151 @@ export type Section =
   | "Budget"
   | "Aufgaben"
   | "Veranstaltungen"
-  | "Dokumente";
+  | "Dokumente"
+  | "Gemeinsam";
 export const events = ["Standesamt", "Tamilische Zeremonie", "Reception"];
-export const initialTasks = [
-  {
-    id: 1,
-    title: "Foto- und Videoangebote vergleichen",
-    detail: "Vorliegende Angebote übertragen und Leistungsumfang prüfen",
-    category: "Foto & Video",
-    priority: "Als Nächstes",
-    done: false,
-  },
-  {
-    id: 2,
-    title: "Budgetrahmen gemeinsam festlegen",
-    detail: "Zielbudget und Obergrenze sind noch offen",
-    category: "Budget",
-    priority: "Entscheidung",
-    done: false,
-  },
-  {
-    id: 3,
-    title: "Details zum gebuchten Saal ergänzen",
-    detail: "Name, Adresse, Termin und Zahlungsfrist fehlen noch",
-    category: "Standesamt",
-    priority: "Ergänzen",
-    done: false,
-  },
-  {
-    id: 4,
-    title: "Gäste je Veranstaltung planen",
-    detail: "180–220 Gäste bei der größten Feier als Ausgangspunkt",
-    category: "Gäste",
-    priority: "Planung",
-    done: false,
-  },
+export const categories = [
+  "Foto & Video",
+  "Catering",
+  "Location",
+  "Musik",
+  "Outfits & Styling",
+  "Sonstiges",
 ];
-export type Offer = {
+export type User = { id: string; name: string; email: string };
+export type Stored = {
   id: string;
+  version: number;
+  updatedAt: string;
+  updatedBy: string | null;
+};
+export type Evidence = Record<string, { page: number; quote: string }[]>;
+export type Offer = Stored & {
   name: string;
+  providerId: string | null;
   category: string;
-  event: string;
+  events: string[];
   price: number | null;
+  currency: string;
   basis: string;
   hours: string;
   team: string;
   photos: string;
   video: string;
-  extras: string;
-  deposit: string;
   delivery: string;
+  deposit: number | null;
+  balance: number | null;
+  paymentTerms: string;
+  extras: string;
+  included: string;
+  excluded: string;
+  optional: string;
+  questions: string;
+  contact: string;
+  offerDate: string;
+  validity: string;
+  extraHours: string;
+  packageName: string;
   source: string;
-  demo: boolean;
+  documentId: string | null;
+  evidence: Evidence;
+  manualFields: string[];
+  status: string;
+  decision: string;
+  confirmed: true;
 };
-export const demoOffers: Offer[] = [
-  {
-    id: "demo-1",
-    name: "Demo-Studio A",
-    category: "Foto & Video",
-    event: "Reception",
-    price: 3200,
-    basis: "Brutto",
-    hours: "10 Stunden",
-    team: "1 Foto · 1 Video",
-    photos: "500 bearbeitete Bilder",
-    video: "Highlightfilm, 5 Minuten",
-    extras: "Fahrtkosten nicht angegeben",
-    deposit: "30 % · 960 €",
-    delivery: "8–10 Wochen",
-    source: "Demo-Angebot A · Seite 1",
-    demo: true,
-  },
-  {
-    id: "demo-2",
-    name: "Demo-Studio B",
-    category: "Foto & Video",
-    event: "Reception",
-    price: 2800,
-    basis: "Nicht angegeben",
-    hours: "8 Stunden",
-    team: "1 Foto · 1 Video",
-    photos: "Nicht angegeben",
-    video: "Highlightfilm, Länge offen",
-    extras: "Anfahrt 150 € · Zusatzstunde 200 €",
-    deposit: "Nicht angegeben",
-    delivery: "Nicht angegeben",
-    source: "Demo-Angebot B · Seite 1",
-    demo: true,
-  },
-  {
-    id: "demo-3",
-    name: "Demo-Studio C",
-    category: "Foto & Video",
-    event: "Standesamt + Reception",
-    price: 3900,
-    basis: "Brutto",
-    hours: "12 Stunden gesamt",
-    team: "2 Foto · Video nicht enthalten",
-    photos: "700 bearbeitete Bilder",
-    video: "Ausdrücklich nicht enthalten",
-    extras: "Anfahrt enthalten · Album optional 250 €",
-    deposit: "500 €",
-    delivery: "6–8 Wochen",
-    source: "Demo-Angebot C · Seite 1",
-    demo: true,
-  },
-];
+export type Provider = Stored & {
+  name: string;
+  category: string;
+  event: string;
+  website: string;
+  email: string;
+  phone: string;
+  region: string;
+  notes: string;
+  status: string;
+  nextAction: string;
+};
+export type Task = Stored & {
+  title: string;
+  detail: string;
+  category: string;
+  priority: string;
+  done: boolean;
+  owner: string;
+  due: string;
+  event: string;
+};
+export type Guest = Stored & {
+  name: string;
+  household: string;
+  type: string;
+  dietary: string;
+  notes: string;
+  attendance: Record<string, string>;
+  table: string;
+};
+export type Cost = Stored & {
+  label: string;
+  category: string;
+  event: string;
+  stage: string;
+  amount: number | null;
+  paid: number | null;
+  due: string;
+  offerId: string | null;
+  notes: string;
+};
+export type WeddingEvent = Stored & {
+  name: string;
+  date: string;
+  location: string;
+  guests: number | null;
+  notes: string;
+  traditions: string;
+  status: string;
+};
+export type Budget = Stored & {
+  target: number | null;
+  limit: number | null;
+  guests: number;
+  fixed: number | null;
+  perGuest: number | null;
+};
+export type Analysis = {
+  fields: Partial<Offer>;
+  evidence: Evidence;
+  warnings: string[];
+  engine: string;
+  analyzedAt: string;
+  pages: { page: number; text: string; method: string; confidence?: number }[];
+};
+export type Document = {
+  id: string;
+  name: string;
+  mime: string;
+  size: number;
+  status: "queued" | "running" | "complete" | "error";
+  progress: string;
+  error?: string;
+  createdAt?: string;
+  analysis?: Analysis | null;
+};
+export type AppState = {
+  tasks: Task[];
+  providers: Provider[];
+  offers: Offer[];
+  guests: Guest[];
+  costs: Cost[];
+  events: WeddingEvent[];
+  settings: Budget[];
+  documents: Document[];
+  members: User[];
+  network: string[];
+  paidApiCalls: false;
+};
+export type Kind =
+  "tasks" | "providers" | "offers" | "guests" | "costs" | "events" | "settings";
 export const money = (value: number) =>
   new Intl.NumberFormat("de-DE", {
     style: "currency",
@@ -118,3 +157,47 @@ export const money = (value: number) =>
     minimumFractionDigits: Number.isInteger(value) ? 0 : 2,
     maximumFractionDigits: 2,
   }).format(value);
+export const price = (value: number | null, currency = "EUR") =>
+  value === null
+    ? "Nicht angegeben"
+    : currency === "EUR"
+      ? money(value)
+      : `${value.toLocaleString("de-DE")} ${currency}`;
+export const dateText = (value: string) =>
+  value
+    ? new Intl.DateTimeFormat("de-DE").format(new Date(value + "T12:00:00"))
+    : "Noch offen";
+export const emptyOffer: Omit<Offer, keyof Stored> = {
+  name: "",
+  providerId: null,
+  category: "Foto & Video",
+  events: [],
+  price: null,
+  currency: "Nicht angegeben",
+  basis: "Nicht angegeben",
+  hours: "",
+  team: "",
+  photos: "",
+  video: "",
+  delivery: "",
+  deposit: null,
+  balance: null,
+  paymentTerms: "",
+  extras: "",
+  included: "",
+  excluded: "",
+  optional: "",
+  questions: "",
+  contact: "",
+  offerDate: "",
+  validity: "",
+  extraHours: "",
+  packageName: "",
+  source: "",
+  documentId: null,
+  evidence: {},
+  manualFields: [],
+  status: "Geprüft",
+  decision: "",
+  confirmed: true,
+};

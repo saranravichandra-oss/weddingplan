@@ -1,52 +1,91 @@
-# Wedding SS
+# Wedding SS · Alles im Blick
 
-Ausgewählt: **Variante A · Alles im Blick**. Die ruhige Salbei-Oberfläche ist die feste Grundlage der weiteren Planung. Repository: [saranravichandra-oss/weddingplan](https://github.com/saranravichandra-oss/weddingplan).
+Die ausgewählte Variante A als private, gemeinsam nutzbare App. React und TypeScript im Browser, ein eigener Node.js-Server, SQLite und lokale Originaldateien. **Keine kostenpflichtige API, kein Cloudkonto und kein kostenpflichtiges Hosting erforderlich.**
 
-## Lokal starten
+Die App verwendet **echte lokale Texterkennung mit Tesseract.js und regelbasierte Angebotsextraktion**. Dies ist keine generative KI und keine simulierte Auswertung. Ein optional separat eingerichteter OpenAI-Schlüssel wird von der App weder geladen noch verwendet. Es gibt keinen Schalter und keinen Codepfad für kostenpflichtige OpenAI-Aufrufe.
 
-Voraussetzung: Node.js 22.12+ bzw. eine von Vite 8 unterstützte neuere Version.
+## Starten
+
+Voraussetzung: **Node.js 24 oder neuer**. Auf dem Rechner, auf dem eure Planung gespeichert werden soll:
 
 ```sh
 npm ci
-npm run dev
+npm run build
+npm start
 ```
 
-Im Browser: http://127.0.0.1:5173
+Öffnen: [http://127.0.0.1:5173](http://127.0.0.1:5173). Für Entwicklung mit automatischer Aktualisierung: `npm run dev`.
 
-Die Startseite öffnet die ausgewählte Variante A ohne Variantenwähler. Der Angebotsvergleich und die manuelle Dokumentprüfung sind über die Navigation und direkt aus der Übersicht erreichbar. Die ursprünglichen drei Entwürfe bleiben im ersten Git-Commit `daf618b` nachvollziehbar.
+1. Das erste Konto direkt auf dem Hauptrechner erstellen: Name, E-Mail als Anmeldename und ein Passwort mit mindestens 12 Zeichen. E-Mails werden nicht versendet.
+2. Unter **Gemeinsam** einen Einladungscode für den zweiten Zugang erzeugen. Der Code gilt 48 Stunden, ist einmalig und kann widerrufen werden.
+3. Auf dem zweiten Gerät im selben privaten Netzwerk die unter **Gemeinsam** angezeigte Netzwerkadresse öffnen. „Ich habe einen Einladungscode“ wählen und ein eigenes Konto erstellen.
 
-React, TypeScript und Vite; eigenes responsives CSS, Phosphor-Icons, lokal gebündelte DM Sans und Manrope. Kein Backend, keine laufenden API-Kosten.
+Beide Zugänge verwenden dieselben Daten. Änderungen erscheinen auf dem anderen Gerät nach spätestens etwa fünf Sekunden. Der Hauptrechner und die App müssen laufen. Bei abgeschaltetem Rechner gibt es keinen Zugriff. Die Netzwerkadresse kann sich ändern. Bei Bedarf muss Node.js in der Windows-Firewall für **private Netzwerke** freigegeben werden; die App ändert keine Firewallregeln.
 
-## Was im ausgewählten Entwurf funktioniert
+Die ausgelieferte HTTP-Konfiguration ist für euer vertrauenswürdiges privates Netzwerk gedacht. Sie ist nicht als öffentliche Internetbereitstellung konfiguriert. Für Zugriff über fremde Netze wäre separat ein sicherer Zugangsweg mit HTTPS/VPN einzurichten. Es wurde dafür kein Dienst gebucht und kein Port im Router geöffnet. Vorhandene Hardware, Strom und Internet werden natürlich weiter benötigt; die Software erzeugt keine API- oder Hostinggebühren.
 
-- Navigation, Veranstaltungswechsel, Aufgaben abhaken und wieder öffnen.
-- Dienstleister manuell anlegen, Angebote mit expliziter Bestätigung manuell erfassen und nach Kategorie vergleichen.
-- PDF-, Bild- und Textdateien lokal öffnen; Angebotstext alternativ einfügen. Format- und Größenprüfung (15 MB).
-- Original und Formular nebeneinander prüfen; Seiten-/Textquelle manuell erfassen. Vorschau gescannter PDFs ohne OCR.
-- Klar markierte erfundene Demo-Angebote optional einblenden; sie bleiben von echten manuell erfassten Angeboten getrennt.
-- Budgetrechner mit expliziter Gästeannahme für 180, 200 und 220 Gäste. Fehlende Beträge sind unbekannt; 0 wird nur bei expliziter Eingabe gerechnet. Der Saal wird einmal berücksichtigt.
-- Tastaturbedienung, native Dialoge mit Fokusbegrenzung und Escape, reduzierte Bewegung.
+## Was dauerhaft funktioniert
 
-**Wichtig:** Änderungen bestehen ausschließlich im React-Sitzungszustand und gehen beim Neuladen verloren. Es gibt keine KI-/OCR-Auswertung, Upload-API, Authentifizierung, gemeinsame Nutzung oder dauerhafte Speicherung. Lokal geöffnete Dateien werden nicht an einen Server übertragen. Die Dokumentenliste enthält nach manueller Übernahme nur den Dateinamen; das Original wird nicht gespeichert. Externe Website-Links werden nur auf ausdrücklichen Klick geöffnet.
+- Aufgaben anlegen, zuordnen, terminieren, bearbeiten, abhaken und löschen.
+- Dienstleister mit Kontakt, Website, Region, Status, nächster Aktion und Notizen verwalten.
+- Angebote hochladen oder Text einfügen; Originale speichern und lokal auswerten.
+- Erkannte Angaben mit Original, erkanntem Seitentext und Seiten-/Textfundstellen prüfen und korrigieren. Manuelle Eingabe bleibt möglich.
+- Geprüfte Angebote samt Quellen, offenen Fragen und persönlicher Entscheidung vergleichen. Bis zu vier Angebote nebeneinander, Kategorien und Suche.
+- Mehrere Angebotsfassungen beim selben Dienstleister zusammenhalten. Ein neues Original erzeugt einen neuen Angebotseintrag; Korrekturen desselben Eintrags werden versioniert. Frühere gespeicherte Stände bleiben im Änderungsverlauf der Datenbank und im Export erhalten.
+- Buchungen ausdrücklich bestätigen. Der bestätigte Betrag wird genau einmal als beauftragt erfasst. Ein Angebot verändert das Budget nicht automatisch.
+- Kosten als geschätzt, unverbindliches Angebot oder beauftragt erfassen. Gezahlte und offene Beträge, Fälligkeit, Zielbudget und Obergrenze unterscheiden.
+- Szenarien mit 180, 200 oder 220 Gästen und separat gespeicherten Fix-/Pro-Kopf-Annahmen berechnen. Unbekannt ist nicht null Euro.
+- Gäste, Haushalte, Kinder/Begleitung, Essenswünsche, Hinweise und optionale Tischangabe verwalten. Einladung und Rückmeldung getrennt je Veranstaltung.
+- Standesamt, tamilische Zeremonie und Reception mit Datum, Ort, Gästegröße, Ablauf und selbst gewählten Traditionen bearbeiten.
+- Unterlagen erneut öffnen oder herunterladen; Planungsdaten einschließlich Auswertungen als JSON exportieren.
+- Zwei private Zugänge, Passwortänderung, Abmeldung, Einladungswiderruf und Konflikterkennung bei gleichzeitiger Bearbeitung.
 
-Die Prüfansicht ist ein bewusst begrenztes Formular zur Bewertung des Ablaufs, kein vollständiges Datenmodell aller Angebotsfelder aus dem Briefing. Bei übernommenen manuellen Angeboten sind weitere Angaben als „nicht angegeben“ sichtbar. Demo-Daten enthalten zusätzliche Vergleichsmerkmale und keine echten Empfehlungen.
+## Angebotsauswertung ohne API-Kosten
 
-## Verbindlicher Planungsstand
+Unterstützt: **PDF, PNG, JPG, WebP und UTF-8-TXT**, alternativ eingefügter Text. Maximal 15 MB pro Datei, 20 PDF-Seiten und 20 Megapixel je gerenderter Seite/Bild. Der lokale Dokumentenspeicher ist auf 2 GB begrenzt. Word- und E-Mail-Dateien bitte als PDF exportieren oder ihren Text einfügen. Ein aus einer E-Mail heruntergeladenes PDF/Bild kann direkt hochgeladen werden.
 
-2027, konkretes Datum offen; Berlin und nahes Brandenburg, maximale Entfernung offen; Standesamt, tamilische Zeremonie und Reception; 180–220 Gäste bei der größten Feier, Zuordnung und Einzelzahlen offen. Keine religiösen Annahmen.
+PDFs mit Text werden direkt gelesen. Gescannte oder textarme Seiten und Bilder werden mit lokal installierten deutschen und englischen OCR-Sprachdateien erkannt. Alle Sprachdaten sind npm-Abhängigkeiten; während der Auswertung wird kein CDN und keine externe KI aufgerufen. OCR läuft in einem separaten Worker mit Zeit- und V8-Speicherlimit. Eine unterbrochene Auswertung kann wiederholt werden; das Original bleibt für manuelle Prüfung erhalten.
 
-Bekannt beauftragt: ausschließlich Saal 1.000 €, davon 500 € angezahlt und 500 € offen. Name, Adresse, Termin und Zahlungsfrist offen. Foto-/Videoangebote liegen extern vor, wurden aber nicht bereitgestellt. Musik organisiert, Preis/Zahlungsstatus offen. Outfits und Styling selbst organisiert, Kosten offen. Catering wird persönlich betreut und bleibt ungebucht. Zielbudget und Obergrenze offen. Angebote verändern die beauftragten Kosten nicht.
+Die Regeln übernehmen nur ausdrücklich erkennbare Angaben. Beispielsweise wird „Gesamtpreis: 3.200,00 EUR“ als Preis vorgeschlagen. Bei mehreren unterschiedlichen Gesamtpreisen bleibt er offen. Anzahlung, Restbetrag und optionale Extras werden nicht zum Paketpreis gemacht. Nicht beschriftete, komplexe oder sprachlich uneindeutige Angebote erfordern mehr manuelle Ergänzung. Die Texterkennung kann Zeichen, Zeilen und Tabellen falsch lesen. Deshalb ist die ausdrückliche Prüfung vor der Übernahme verpflichtend.
 
-## Prüfung
+Erfasst werden Anbieter, Kontakt, Kategorie, Veranstaltungen, Paket, Angebotsdatum, Gültigkeit, Preis/Währung/Preisbasis, Anzahlung/Rest, Zahlungsbedingungen, enthaltene/ausgeschlossene/optionale Leistungen, Zusatzkosten, Foto-/Videoumfang, Team, Dauer, Lieferzeit, zusätzliche Stunden und offene Fragen. Fehlendes bleibt „nicht angegeben“. Es wird kein „bester Anbieter“ automatisch bestimmt.
+
+## Speicher & Backup
+
+Der Server legt **`.wedding-data/`** neben dem Projekt an:
+
+- `wedding.sqlite` sowie SQLite-WAL-Dateien: Konten, Sitzungen, Planung, Angebote, Auswertungen und Änderungsverlauf.
+- `documents/`: privat gespeicherte Originale mit zufälligen internen Dateinamen.
+- `ocr/`: lokale Sprachdateien für die Texterkennung.
+
+Dieser Ordner und `.env*` werden von Git ausgeschlossen und vom Webzugriff gesperrt. **Nicht löschen, wenn ihr die App aktualisiert.** Ein optionales `WEDDING_DATA_DIR` kann beim Serverstart als Umgebungsvariable einen anderen Speicherort festlegen. `PORT` und `HOST` lassen sich ebenso über Umgebungsvariablen setzen. `.env.example` ist nur Dokumentation, kein automatisch geladenes Serverprofil.
+
+Vollständiges Backup von Datenbank und allen darin referenzierten Originalen:
+
+```sh
+npm run backup
+```
+
+Das Ergebnis liegt in **`.wedding-backups/<Zeitpunkt>/`**. Der SQLite-Snapshot ist auch bei laufendem Server konsistent. Das Backup enthält private Planungsdaten und Konten; deshalb separat und privat sichern. Für Wiederherstellung: Server stoppen, den bisherigen Datenordner separat sichern und `wedding.sqlite` sowie `documents/` aus dem Backup in einen leeren Datenordner kopieren. Danach starten. OCR-Sprachdateien werden bei Bedarf lokal aus den installierten Paketen erneut kopiert. Das JSON aus der Oberfläche ist ein Datenexport; Originaldateien sind separat herunterzuladen oder über das vollständige Backup zu sichern.
+
+Passwörter werden mit zufälligem Salt und scrypt gehasht. Sitzungen verwenden zufällige, nur gehasht gespeicherte Tokens und HttpOnly-/SameSite-Cookies. Zustandsänderungen benötigen einen CSRF-Token. Fremde Origins und unbekannte Hosts werden abgelehnt. Es gibt keine öffentliche Registrierung nach dem ersten Konto; der zweite Zugang benötigt eine gültige Einladung. Hochgeladene Dateien sind nur nach Anmeldung erreichbar. Dateigröße, tatsächlicher Dateityp, Eingaben und Schreibversionen werden serverseitig geprüft. Die lokale Datenbank ist nicht zusätzlich dateiverschlüsselt; den Rechner und Backups mit den vorhandenen Betriebssystem-Zugriffsschutzfunktionen schützen.
+
+## Verbindlicher Ausgangsstand
+
+2027, konkretes Datum offen; Berlin und nahes Brandenburg, maximale Entfernung offen. Standesamt, tamilische Zeremonie und Reception. 180–220 Gäste bei der größten Feier, Zuordnung und Einzelzahlen offen. Keine religiösen Vorgaben.
+
+Initial ausschließlich Saal: 1.000 € beauftragt, 500 € gezahlt, 500 € offen. Name, Adresse, Termin und Zahlungsfrist nicht angegeben. Foto-/Videoangebote liegen extern vor, wurden noch nicht bereitgestellt. Musik organisiert, Preis und Zahlungsstatus offen. Outfits und Styling selbst organisiert, Kosten offen. Catering wird persönlich betreut und bleibt ungebucht. Zielbudget und Obergrenze offen. Es werden keine Demo-Anbieter oder erfundenen Preise in eure Datenbank eingetragen.
+
+## Prüfen
 
 ```sh
 npm run build
+npm run test:unit
 npx playwright install chromium
-npm test
+npm run test:e2e
+npm audit --omit=dev
 ```
 
-Die Browserprüfungen decken alle Bereiche auf Desktop/Mobilgeräten, unbekannte Preise, Trennung von Demo und realen Daten, fehlende Szenariowerte, einmalige Saalkosten, lokale Dateien, Veranstaltungswechsel und sitzungsbezogene Aufgaben ab.
+Die Tests verwenden getrennte temporäre Datenbanken und synthetische Dokumente. Sie prüfen Anmeldung, CSRF, Einladungen, gemeinsame Sicht, konkurrierende Änderungen, dauerhafte Speicherung über Serverneustart, private Originale, echte Screenshot- und Scan-PDF-OCR, fehlende Preise, einmalige Buchung, Gästeantworten pro Feier, Browserabläufe, Desktop und Mobilansicht. Eure echte `.wedding-data` wird nicht für Tests verwendet.
 
-## Späterer funktionaler Ausbau
-
-Privater Zugriff für zwei Personen, Datenbank und privater Dokumentenspeicher, Dateizugriff mit Berechtigungen, echte serverseitige Dokumentanalyse/OCR mit Quellen und Korrekturschritt, versionierte Angebote, vollständige Angebotsfelder, Aufgabenverantwortung/Termine, Gäste mit veranstaltungsbezogenen Rückmeldungen und Datenexport. Dafür sind Backend, Authentifizierung, Speicher und ein tatsächlich angebundener Auswertungsdienst noch auszuwählen und zu konfigurieren.
+Technische Grundlagen: [Node SQLite](https://nodejs.org/api/sqlite.html), [Tesseract.js API](https://github.com/naptha/tesseract.js/blob/master/docs/api.md), [PDF.js Node-Beispiel](https://github.com/mozilla/pdf.js/blob/master/examples/node/pdf2png/pdf2png.mjs).
