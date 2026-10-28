@@ -1,13 +1,14 @@
 {
   "name": "weddingplan",
   "version": "1.0.0",
-  "description": "Drei interaktive Dashboard-Entwürfe für Wedding SS",
+  "description": "Wedding SS – persönliche Hochzeitsplanung, Alles im Blick",
   "scripts": {
     "test": "playwright test",
     "dev": "vite --host 127.0.0.1",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview --host 127.0.0.1",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "format": "prettier --write src tests playwright.config.ts index.html README.md"
   },
   "repository": {
     "type": "git",
@@ -15,7 +16,6 @@
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
   "type": "module",
   "bugs": {
     "url": "https://github.com/saranravichandra-oss/weddingplan/issues"
@@ -32,8 +32,9 @@
     "@playwright/test": "^1.64.1",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
+    "prettier": "^3.9.10",
     "typescript": "^7.0.2",
     "vite": "^8.3.5"
   },
-  "private": "true"
+  "private": true
 }

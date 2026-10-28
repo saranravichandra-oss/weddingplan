@@ -1,6 +1,6 @@
 # Wedding SS
 
-Drei interaktive Dashboard-Entwürfe auf Basis des bereitgestellten Briefings. Repository: [saranravichandra-oss/weddingplan](https://github.com/saranravichandra-oss/weddingplan).
+Ausgewählt: **Variante A · Alles im Blick**. Die ruhige Salbei-Oberfläche ist die feste Grundlage der weiteren Planung. Repository: [saranravichandra-oss/weddingplan](https://github.com/saranravichandra-oss/weddingplan).
 
 ## Lokal starten
 
@@ -13,17 +13,12 @@ npm run dev
 
 Im Browser: http://127.0.0.1:5173
 
-| Entwurf | Direktlink | Arbeitsweise |
-| --- | --- | --- |
-| A · Alles im Blick | http://127.0.0.1:5173/?variant=a | Ruhige Übersicht mit nächsten Schritten, bekannten Saalkosten und direktem Vergleichszugang |
-| B · Vergleich im Fokus | http://127.0.0.1:5173/?variant=b | Dichte Vergleichsmatrix, dokumentbezogene manuelle Prüfung und kompakter Planungsstand |
-| C · Unsere Feiern | http://127.0.0.1:5173/?variant=c | Warme Gestaltung mit eigenem Arbeitsbereich je Veranstaltung und gemeinsamem Dienstleistervergleich |
+Die Startseite öffnet die ausgewählte Variante A ohne Variantenwähler. Der Angebotsvergleich und die manuelle Dokumentprüfung sind über die Navigation und direkt aus der Übersicht erreichbar. Die ursprünglichen drei Entwürfe bleiben im ersten Git-Commit `daf618b` nachvollziehbar.
 
-React, TypeScript und Vite; eigenes responsives CSS, Phosphor-Icons, lokal gebündelte DM Sans und Manrope. Kein Backend, keine laufenden API-Kosten. Bewusst noch keine Designrichtung zur produktiven Umsetzung ausgewählt.
+React, TypeScript und Vite; eigenes responsives CSS, Phosphor-Icons, lokal gebündelte DM Sans und Manrope. Kein Backend, keine laufenden API-Kosten.
 
-## Was in den Entwürfen funktioniert
+## Was im ausgewählten Entwurf funktioniert
 
-- Variantenwechsel ohne Verlust des temporären Sitzungsstands; direkte Variantenlinks.
 - Navigation, Veranstaltungswechsel, Aufgaben abhaken und wieder öffnen.
 - Dienstleister manuell anlegen, Angebote mit expliziter Bestätigung manuell erfassen und nach Kategorie vergleichen.
 - PDF-, Bild- und Textdateien lokal öffnen; Angebotstext alternativ einfügen. Format- und Größenprüfung (15 MB).
@@ -50,8 +45,8 @@ npx playwright install chromium
 npm test
 ```
 
-Die Browserprüfungen decken Varianten auf Desktop/Mobilgeräten, unbekannte Preise, Trennung von Demo und realen Daten, fehlende Szenariowerte, einmalige Saalkosten, lokale Dateien, Veranstaltungswechsel und sitzungsbezogene Aufgaben ab.
+Die Browserprüfungen decken alle Bereiche auf Desktop/Mobilgeräten, unbekannte Preise, Trennung von Demo und realen Daten, fehlende Szenariowerte, einmalige Saalkosten, lokale Dateien, Veranstaltungswechsel und sitzungsbezogene Aufgaben ab.
 
-## Späterer Ausbau nach Designwahl
+## Späterer funktionaler Ausbau
 
 Privater Zugriff für zwei Personen, Datenbank und privater Dokumentenspeicher, Dateizugriff mit Berechtigungen, echte serverseitige Dokumentanalyse/OCR mit Quellen und Korrekturschritt, versionierte Angebote, vollständige Angebotsfelder, Aufgabenverantwortung/Termine, Gäste mit veranstaltungsbezogenen Rückmeldungen und Datenexport. Dafür sind Backend, Authentifizierung, Speicher und ein tatsächlich angebundener Auswertungsdienst noch auszuwählen und zu konfigurieren.
