@@ -338,7 +338,7 @@ svg {
   flex-direction: column;
   gap: 6px;
 }
-.sidebar nav > button {
+.sidebar nav > a {
   background: none;
   border: 0;
   display: flex;
@@ -350,10 +350,10 @@ svg {
   text-align: left;
   color: #707869;
 }
-.sidebar nav > button:hover {
+.sidebar nav > a:hover {
   background: #f0f3e9;
 }
-.sidebar nav > button.active {
+.sidebar nav > a.active {
   background: #e8eedf;
   color: #456041;
   font-weight: 600;
@@ -2161,7 +2161,7 @@ textarea {
   .project-card strong {
     font-size: 10px;
   }
-  .sidebar nav > button {
+  .sidebar nav > a {
     padding: 11px;
     gap: 10px;
     font-size: 11px;
@@ -2323,7 +2323,7 @@ textarea {
   .sidebar .brand > span,
   .project-card,
   .nav-label,
-  .sidebar nav > button > span,
+  .sidebar nav > a > span,
   .sidebar-bottom {
     display: none;
   }
@@ -2333,11 +2333,11 @@ textarea {
   .sidebar nav {
     gap: 11px;
   }
-  .sidebar nav > button {
+  .sidebar nav > a {
     padding: 13px 0;
     justify-content: center;
   }
-  .sidebar nav > button svg {
+  .sidebar nav > a svg {
     width: 21px;
     height: 21px;
   }
@@ -2851,7 +2851,7 @@ textarea {
     gap: 1px;
   }
   .sidebar {
-    display: contents !important;
+    display: block;
   }
   .sidebar .brand,
   .sidebar .project-card,
@@ -2859,7 +2859,7 @@ textarea {
   .sidebar .sidebar-bottom {
     display: none !important;
   }
-  .sidebar nav > button {
+  .sidebar nav > a {
     flex: 1;
     display: flex;
     flex-direction: column;
@@ -2869,18 +2869,18 @@ textarea {
     font-size: 8px;
     max-width: 60px;
   }
-  .sidebar nav > button > span {
+  .sidebar nav > a > span {
     display: block !important;
     font-size: 7px;
   }
-  .sidebar nav > button > span.nav-marker {
+  .sidebar nav > a > span.nav-marker {
     display: none !important;
   }
-  .sidebar nav > button > svg {
+  .sidebar nav > a > svg {
     height: 19px;
     width: 19px;
   }
-  .sidebar nav > button.active {
+  .sidebar nav > a.active {
     background: #eaf0e2;
   }
   .page-heading {
@@ -3507,7 +3507,7 @@ thead .badge {
   .payment-split {
     font-size: 11px;
   }
-  .sidebar nav > button > span {
+  .sidebar nav > a > span {
     font-size: 8px;
   }
   .compact-summary,

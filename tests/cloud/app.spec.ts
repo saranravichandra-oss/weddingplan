@@ -56,7 +56,7 @@ test("cloud upload, browser OCR, private originals and shared persistence work",
   await page.reload();
   await page
     .getByRole("navigation", { name: "Hauptnavigation" })
-    .getByRole("button", { name: "Dienstleister", exact: true })
+    .getByRole("link", { name: "Dienstleister", exact: true })
     .click();
   await expect(
     page.getByRole("columnheader", { name: /Teststudio/ }),
@@ -109,7 +109,7 @@ test("cloud upload, browser OCR, private originals and shared persistence work",
   await partner.goto("/");
   await partner
     .getByRole("navigation", { name: "Hauptnavigation" })
-    .getByRole("button", { name: "Dienstleister", exact: true })
+    .getByRole("link", { name: "Dienstleister", exact: true })
     .click();
   await expect(
     partner.getByRole("columnheader", { name: /Teststudio/ }),

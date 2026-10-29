@@ -98,9 +98,11 @@ Jede abgeschlossene Änderung passend testen, korrigieren, committen/pushen und 
 - [x] Automationsprompts auf große UI-/UX-Überarbeitung und ausschließlich tamilische Dienstleister aktualisiert.
 - [x] Lokalen Apple-Design-Skill und Skill Scout gelesen; GitHub-Kandidaten und Primärquellen gesichtet.
 - [x] Neue Excel-Datei nur lesend analysiert, private Diagnose ignoriert abgelegt.
-- [ ] Excel-Import, Gruppen-/Personenzählung und Vorschau implementiert/getestet/deployt.
+- [x] Excel-Import, Gruppen-/Personenzählung und Vorschau implementiert/getestet/deployt. Commit `fae6df9`, Vercel READY `dpl_BJgWwC8CuRSqYmQECgqV8ZEEU1Dv`, Supabase Edge v3. 20 Node-Tests, bisherige 6 Browserabläufe und zusätzlicher vollständiger XLSX-Importablauf erfolgreich. Echte XLSX nur lesend gegen Parser geprüft. Neue SQL-RPC in einer zurückgerollten Transaktion auf Idempotenz und richtige Personenzahl geprüft; keine Testgäste produktiv hinterlassen. Produktiver Anonymenschutz 401 bestätigt.
 - [ ] Sichtbare UI-/UX-Überarbeitung implementiert/getestet/deployt.
 - [ ] Recherchierte Vorauswahl in App nutzbar und belegt.
 - [ ] Pitch mit konkreter Demo vorbereitet.
 
 Zum Fortsetzen zuerst tatsächlichen Git-/Dateistand prüfen; diese Liste nach jedem Arbeitszyklus mit Commit, Tests und Deploymentnachweis aktualisieren.
+
+Aktueller zweiter Arbeitsabschnitt: deutlich neue Atelier-Oberfläche mit eigenem `Dashboard.tsx` und `atelier.css`, dunkler Navigation, neuem Seitenaufbau, größerer Typografie, mobilen Touch-Zielen und URL-/Zurück-Navigation. Lokal 8 Browserabläufe erfolgreich, anschließend zwei gezielte Desktop-/Mobil-/Navigationstests nach einer visuellen Korrektur erneut erfolgreich. Veröffentlichung folgt im laufenden Turn. Nächste konkrete UX-Priorität danach: Angebotsentwürfe vor Verlust schützen und neue recherchierte Vorauswahl in der App zugänglich machen.

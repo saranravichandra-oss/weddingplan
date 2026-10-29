@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useId } from "react";
 import type { ReactNode } from "react";
 import { X } from "@phosphor-icons/react";
 export function Button({
@@ -84,6 +84,7 @@ export function Dialog({
   wide?: boolean;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
   useEffect(() => {
     const element = ref.current;
     const previous = document.activeElement as HTMLElement | null;
@@ -96,11 +97,12 @@ export function Dialog({
   return (
     <dialog
       ref={ref}
+      aria-labelledby={titleId}
       className={`dialog ${wide ? "wide" : ""}`}
       onCancel={onClose}
     >
       <div className="dialog-heading">
-        <h2>{title}</h2>
+        <h2 id={titleId}>{title}</h2>
         <button
           className="icon-button"
           aria-label="Dialog schließen"

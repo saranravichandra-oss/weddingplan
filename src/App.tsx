@@ -49,6 +49,8 @@ import OfferReview from "./components/OfferReview";
 import RecordEditor from "./components/RecordEditor";
 import Team from "./components/Team";
 import GuestImport from "./components/GuestImport";
+import Dashboard from "./components/Dashboard";
+import { currentSection, sectionHref } from "./navigation";
 import { attendanceValues, peopleCount } from "../shared/guests.mjs";
 import {
   Badge,
@@ -137,7 +139,7 @@ function Stat({
 function PlanningApp({ user, logout }: { user: User; logout: () => void }) {
   const [state, setState] = useState<AppState | null>(null);
   const [connectionError, setConnectionError] = useState("");
-  const [section, setSection] = useState<Section>("Übersicht");
+  const [section, setSection] = useState<Section>(currentSection);
   const [notice, setNotice] = useState("");
   const [editor, setEditor] = useState<{
     kind: Exclude<Kind, "offers">;
@@ -158,6 +160,14 @@ function PlanningApp({ user, logout }: { user: User; logout: () => void }) {
   const [scenarioGuests, setScenarioGuests] = useState(200);
   const [moreOfferDetails, setMoreOfferDetails] = useState(false);
   const [guestImport, setGuestImport] = useState(false);
+  useEffect(() => {
+    const update = () => {
+      setSection(currentSection());
+      setSearch("");
+    };
+    window.addEventListener("popstate", update);
+    return () => window.removeEventListener("popstate", update);
+  }, []);
   const refresh = useCallback(async () => {
     try {
       const data = await getState();
@@ -188,6 +198,8 @@ function PlanningApp({ user, logout }: { user: User; logout: () => void }) {
     return () => clearTimeout(timer);
   }, [notice]);
   const go = (value: Section) => {
+    if (value !== currentSection())
+      history.pushState({}, "", sectionHref(value));
     setSection(value);
     setSearch("");
     window.scrollTo({ top: 0 });
@@ -373,156 +385,17 @@ function PlanningApp({ user, logout }: { user: User; logout: () => void }) {
     </div>
   );
   const overview = (
-    <>
-      <div className="greeting">
-        <div>
-          <span className="eyebrow">EURE HOCHZEIT, SCHRITT FÜR SCHRITT</span>
-          <h1>
-            Große Vorfreude.
-            <br className="mobile-break" /> Klarer Überblick.
-          </h1>
-          <p>Hier wird aus vielen kleinen Entscheidungen euer großer Tag.</p>
-        </div>
-        <Flower className="greeting-mark" size={73} weight="thin" />
-      </div>
-      <div className="stats-grid">
-        <Stat
-          icon={CalendarBlank}
-          label="Euer Hochzeitsjahr"
-          value="2027"
-          detail={
-            state.events.some((e) => e.date)
-              ? "Termine unter Veranstaltungen"
-              : "Das genaue Datum ist noch offen"
-          }
-        />
-        <Stat
-          icon={Users}
-          label="Geplante Gäste"
-          value="180–220"
-          detail="Bei eurer größten Feier · Einzelzahlen offen"
-        />
-        <Stat
-          icon={Wallet}
-          label="Bekannt beauftragt"
-          value={money(committed)}
-          detail={
-            unknownCommitted
-              ? `${unknownCommitted} weitere Beträge offen`
-              : `${committedCosts.length} erfasste Kostenpositionen`
-          }
-        />
-        <Stat
-          icon={Heart}
-          label="Euer Zielbudget"
-          value={budget.target === null ? "Noch offen" : money(budget.target)}
-          detail={
-            budget.limit === null
-              ? "Obergrenze noch offen"
-              : "Obergrenze " + money(budget.limit)
-          }
-        />
-      </div>
-      <div className="overview-grid">
-        <div className="main-column">
-          <div className="compare-callout">
-            <div className="callout-text">
-              <span className="eyebrow">EURE NÄCHSTE ENTSCHEIDUNG</span>
-              <h2>
-                Die Erinnerungen bleiben.
-                <br />
-                Welches Foto-Team passt zu euch?
-              </h2>
-              <p>
-                {state.offers.length
-                  ? `${state.offers.length} geprüfte Angebote sind gespeichert. Vergleicht Leistungen, Preise und offene Fragen.`
-                  : "Erste Angebote liegen euch bereits vor. Ladet sie hoch und prüft die automatisch erkannten Angaben."}
-              </p>
-              <Button onClick={() => go("Dienstleister")}>
-                Angebote vergleichen <ArrowRight size={17} />
-              </Button>
-            </div>
-            <div className="camera-illustration" aria-hidden="true">
-              <Camera size={92} weight="thin" />
-              <span>Foto & Video</span>
-            </div>
-          </div>
-          <section className="panel tasks-panel">
-            <Heading
-              title="Als Nächstes"
-              subtitle="Die wichtigen Schritte, ohne das große Durcheinander."
-              action={
-                <button className="text-button" onClick={() => go("Aufgaben")}>
-                  Alle Aufgaben <ArrowRight />
-                </button>
-              }
-            />
-            {taskList(true)}
-          </section>
-          <section className="event-overview">
-            <Heading
-              title="Drei Feiern. Eine Geschichte."
-              action={
-                <button
-                  className="text-button"
-                  onClick={() => go("Veranstaltungen")}
-                >
-                  Planung öffnen <ArrowRight />
-                </button>
-              }
-            />
-            <div className="mini-events">
-              {state.events.map((event, i) => (
-                <button key={event.id} onClick={() => edit("events", event)}>
-                  <span className="event-no">0{i + 1}</span>
-                  <h3>{event.name}</h3>
-                  <span>
-                    {event.date ? dateText(event.date) : event.status}{" "}
-                    <ArrowUpRight size={16} />
-                  </span>
-                </button>
-              ))}
-            </div>
-          </section>
-        </div>
-        <aside className="side-column">
-          {paymentCard}
-          <div className="panel upload-card">
-            <div className="icon-box">
-              <UploadSimple size={23} />
-            </div>
-            <h3>Vom Angebot zum Überblick</h3>
-            <p>
-              PDF, Screenshot oder Text: lokal auswerten, Angaben prüfen und
-              gemeinsam vergleichen.
-            </p>
-            <Button secondary onClick={() => setReview({})}>
-              <Plus size={17} /> Angebot hinzufügen
-            </Button>
-            <small>Echte lokale OCR · keine API-Gebühren</small>
-          </div>
-          {drafts.length > 0 && (
-            <div className="panel pending-documents">
-              <h3>{drafts.length} Unterlagen noch prüfen</h3>
-              <p>
-                Originale sind gespeichert; bestätigte Angaben folgen im
-                Vergleich.
-              </p>
-              <button className="text-button" onClick={() => go("Dokumente")}>
-                Unterlagen öffnen <ArrowRight />
-              </button>
-            </div>
-          )}
-          <div className="planning-note">
-            <Info size={19} />
-            <p>
-              Musik ist organisiert. Outfits, Styling und Catering betreut ihr
-              selbst. Nicht erfasste Kosten bleiben offen.
-            </p>
-          </div>
-        </aside>
-      </div>
-    </>
+    <Dashboard
+      state={state}
+      user={user}
+      go={go}
+      onUpload={() => setReview({})}
+      onImport={() => {
+        go("Gäste");
+        setGuestImport(true);
+      }}
+      tasks={taskList(true)}
+    />
   );
   const filteredOffers = state.offers.filter(
     (offer) =>
@@ -1424,18 +1297,30 @@ function PlanningApp({ user, logout }: { user: User; logout: () => void }) {
           <span className="nav-label">UNSERE PLANUNG</span>
           <nav aria-label="Hauptnavigation">
             {navigation.map(({ label, icon: IconComponent }) => (
-              <button
+              <a
                 className={section === label ? "active" : ""}
+                href={sectionHref(label)}
                 aria-current={section === label ? "page" : undefined}
                 key={label}
-                onClick={() => go(label)}
+                onClick={(event) => {
+                  if (
+                    !event.metaKey &&
+                    !event.ctrlKey &&
+                    !event.shiftKey &&
+                    !event.altKey &&
+                    event.button === 0
+                  ) {
+                    event.preventDefault();
+                    go(label);
+                  }
+                }}
               >
                 <IconComponent
                   size={20}
                   weight={section === label ? "fill" : "regular"}
                 />
                 <span>{label}</span>
-              </button>
+              </a>
             ))}
           </nav>
           <div className="sidebar-bottom">
@@ -1584,7 +1469,7 @@ function PlanningApp({ user, logout }: { user: User; logout: () => void }) {
             events={state.events}
             onSaved={() => {
               void saved();
-              setSection("Dienstleister");
+              go("Dienstleister");
             }}
           />
         </Dialog>

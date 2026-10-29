@@ -18,7 +18,7 @@ async function login(page: Page, asPartner = false) {
 async function section(page: Page, name: string) {
   await page
     .getByRole("navigation", { name: "Hauptnavigation" })
-    .getByRole("button", { name, exact: true })
+    .getByRole("link", { name, exact: true })
     .click();
 }
 test.beforeAll(async ({ request }) => {
@@ -285,11 +285,9 @@ test("Excel guest import previews households, preserves open responses and skips
   );
   await button.click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
-  const family = page
-    .getByRole("row")
-    .filter({
-      has: page.getByRole("rowheader", { name: /Browser Import Family/ }),
-    });
+  const family = page.getByRole("row").filter({
+    has: page.getByRole("rowheader", { name: /Browser Import Family/ }),
+  });
   await expect(family).toContainText("4 Personen");
   await expect(
     family.getByRole("cell", { name: "Vorgesehen", exact: true }),
@@ -313,4 +311,27 @@ test("Excel guest import previews households, preserves open responses and skips
     }),
   ).toBeDisabled();
   await page.getByRole("button", { name: "Dialog schließen" }).click();
+});
+
+test("navigation links preserve the current workspace and browser back returns to the previous section", async ({
+  page,
+}) => {
+  await login(page);
+  await section(page, "Gäste");
+  await expect(page).toHaveURL(/bereich=gaeste/);
+  await page.reload();
+  await expect(
+    page.getByRole("heading", { name: "Eure Lieblingsmenschen.", exact: true }),
+  ).toBeVisible();
+  await section(page, "Aufgaben");
+  await expect(page).toHaveURL(/bereich=aufgaben/);
+  await page.goBack();
+  await expect(
+    page.getByRole("heading", { name: "Eure Lieblingsmenschen.", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page
+      .getByRole("navigation", { name: "Hauptnavigation" })
+      .getByRole("link", { name: "Gäste", exact: true }),
+  ).toHaveAttribute("aria-current", "page");
 });
