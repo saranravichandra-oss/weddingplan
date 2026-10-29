@@ -52,7 +52,7 @@ test("all planning areas work on desktop and mobile with no runtime errors or ho
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await login(page);
-  for (const width of [1440, 390]) {
+  for (const width of [1440, 390, 320]) {
     await page.setViewportSize({ width, height: 950 });
     for (const name of [
       "Übersicht",
@@ -966,4 +966,94 @@ test("per-person quotes retain their pricing unit and never invent a total from 
   expect(offer.price).toBeNull();
   expect(offer.pricingNotes).toContain("Preis pro Person");
   expect(offer.evidence.pricingNotes[0].page).toBe(1);
+});
+
+test("failed sign out stays visible and can be retried safely on a narrow phone", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 850 });
+  await login(page);
+  await page.route(
+    "**/api/auth/logout",
+    (route) =>
+      route.fulfill({
+        status: 503,
+        contentType: "application/json",
+        body: JSON.stringify({ error: "Synthetic offline response" }),
+      }),
+    { times: 1 },
+  );
+  await section(page, "Gemeinsam");
+  await page.getByRole("button", { name: "Abmelden", exact: true }).click();
+  await expect(
+    page
+      .getByRole("alert")
+      .filter({ hasText: "Abmelden konnte nicht bestätigt werden" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("navigation", { name: "Hauptnavigation" }),
+  ).toBeVisible();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBeTruthy();
+  await page.getByRole("button", { name: "Abmelden", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Schön, dass du da bist.", exact: true }),
+  ).toBeVisible();
+  const session = await (await page.request.get("/api/auth/me")).status();
+  expect(session).toBe(401);
+});
+
+test("Excel mapping stays usable on a narrow phone and closing the preview saves no guests", async ({
+  page,
+}, testInfo) => {
+  await page.setViewportSize({ width: 320, height: 850 });
+  await login(page);
+  await section(page, "Gäste");
+  const before = await (await page.request.get("/api/state")).json();
+  const open = page.getByRole("button", {
+    name: "Excel importieren",
+    exact: true,
+  });
+  await open.click();
+  await page.getByLabel("Excel-Gästeliste auswählen").setInputFiles({
+    name: "mobile-preview.xlsx",
+    mimeType:
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    buffer: guestWorkbook([
+      ["Gästeliste", "Anz.", "Prio", null, null],
+      [null, null, "beides", "thaali", "rezeption"],
+      [null],
+      [
+        "Eine lange synthetische Familienbezeichnung für die mobile Vorschau",
+        4,
+        "x",
+      ],
+    ]),
+  });
+  await expect(
+    page.getByRole("button", {
+      name: "1 Eintrag mit 4 Personen importieren",
+      exact: true,
+    }),
+  ).toBeEnabled();
+  const dialog = page.getByRole("dialog");
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBeTruthy();
+  expect(
+    await dialog.evaluate(
+      (element) => element.scrollWidth <= element.clientWidth + 1,
+    ),
+  ).toBeTruthy();
+  await page.screenshot({ path: testInfo.outputPath("guest-import-320.png") });
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+  await expect(open).toBeFocused();
+  const after = await (await page.request.get("/api/state")).json();
+  expect(after.guests).toEqual(before.guests);
 });

@@ -33,7 +33,15 @@ import {
   X,
 } from "@phosphor-icons/react";
 import type { Icon } from "@phosphor-icons/react";
-import { api, deleteRecord, getState, json, saveRecord, setCsrf } from "./api";
+import {
+  api,
+  ApiError,
+  deleteRecord,
+  getState,
+  json,
+  saveRecord,
+  setCsrf,
+} from "./api";
 import type { Auth } from "./api";
 import { dateText, money, price } from "./data";
 import type {
@@ -109,12 +117,12 @@ export default function App() {
       logout={async () => {
         try {
           await api("/auth/logout", { method: "POST" });
-          clearOfferDrafts(user.id);
-          setCsrf("");
-          setUser(null);
-        } catch {
-          /* Keep the user signed in if the server did not invalidate the session. */
+        } catch (error) {
+          if (!(error instanceof ApiError && error.status === 401)) throw error;
         }
+        clearOfferDrafts(user.id);
+        setCsrf("");
+        setUser(null);
       }}
     />
   );
@@ -143,11 +151,25 @@ function Stat({
     </div>
   );
 }
-function PlanningApp({ user, logout }: { user: User; logout: () => void }) {
+function PlanningApp({
+  user,
+  logout,
+}: {
+  user: User;
+  logout: () => Promise<void>;
+}) {
   const [state, setState] = useState<AppState | null>(null);
   const [connectionError, setConnectionError] = useState("");
   const [section, setSection] = useState<Section>(currentSection);
-  const [notice, setNotice] = useState("");
+  const [notice, setNoticeState] = useState<{
+    text: string;
+    tone: "success" | "error" | "info";
+  } | null>(null);
+  const notify = useCallback(
+    (text: string, tone: "success" | "error" | "info" = "success") =>
+      setNoticeState(text ? { text, tone } : null),
+    [],
+  );
   const [editor, setEditor] = useState<{
     kind: Exclude<Kind, "offers">;
     record?: Record<string, unknown> & Partial<Stored>;
@@ -214,10 +236,10 @@ function PlanningApp({ user, logout }: { user: User; logout: () => void }) {
     };
   }, [refresh]);
   useEffect(() => {
-    if (!notice) return;
-    const timer = setTimeout(() => setNotice(""), 7000);
+    if (!notice || notice.tone === "error") return;
+    const timer = setTimeout(() => notify(""), 7000);
     return () => clearTimeout(timer);
-  }, [notice]);
+  }, [notice, notify]);
   const go = (value: Section) => {
     if (value !== currentSection())
       history.pushState({}, "", sectionHref(value));
@@ -233,16 +255,26 @@ function PlanningApp({ user, logout }: { user: User; logout: () => void }) {
   const saved = async () => {
     setEditor(null);
     setReview(null);
-    setNotice("Dauerhaft gespeichert. Für euch beide verfügbar.");
+    notify("Dauerhaft gespeichert. Für euch beide verfügbar.");
     await refresh();
+  };
+  const signOut = async () => {
+    try {
+      await logout();
+    } catch {
+      notify(
+        "Abmelden konnte nicht bestätigt werden. Bitte Verbindung prüfen und erneut versuchen.",
+        "error",
+      );
+    }
   };
   const remove = async (kind: Kind, record: Stored) => {
     if (!window.confirm("Diesen Eintrag dauerhaft löschen?")) return;
     try {
       await deleteRecord(kind, record);
-      setNotice("Eintrag gelöscht.");
+      notify("Eintrag gelöscht.");
     } catch (error) {
-      setNotice((error as Error).message);
+      notify((error as Error).message, "error");
     }
     await refresh();
   };
@@ -252,9 +284,9 @@ function PlanningApp({ user, logout }: { user: User; logout: () => void }) {
   ) => {
     try {
       await saveRecord(kind, data);
-      setNotice("Änderung gespeichert.");
+      notify("Änderung gespeichert.");
     } catch (error) {
-      setNotice((error as Error).message);
+      notify((error as Error).message, "error");
     }
     await refresh();
   };
@@ -587,8 +619,9 @@ function PlanningApp({ user, logout }: { user: User; logout: () => void }) {
                   onChange={(e) => {
                     const ids = compared.map((c) => c.id);
                     if (e.target.checked && ids.length >= 4) {
-                      setNotice(
+                      notify(
                         "Bitte höchstens vier Angebote gleichzeitig auswählen.",
+                        "info",
                       );
                       return;
                     }
@@ -1268,10 +1301,10 @@ function PlanningApp({ user, logout }: { user: User; logout: () => void }) {
                     return;
                   try {
                     await api(`/documents/${doc.id}`, { method: "DELETE" });
-                    setNotice("Dokument gelöscht.");
+                    notify("Dokument gelöscht.");
                     await refresh();
                   } catch (error) {
-                    setNotice((error as Error).message);
+                    notify((error as Error).message, "error");
                   }
                 }}
               >
@@ -1326,7 +1359,7 @@ function PlanningApp({ user, logout }: { user: User; logout: () => void }) {
   if (section === "Veranstaltungen") content = eventsView;
   if (section === "Dokumente") content = documentsView;
   if (section === "Gemeinsam")
-    content = <Team state={state} user={user} logout={logout} />;
+    content = <Team state={state} user={user} logout={signOut} />;
   return (
     <div className="app">
       <a className="skip-link" href="#main">
@@ -1395,7 +1428,7 @@ function PlanningApp({ user, logout }: { user: User; logout: () => void }) {
               <br />
               Ein Plan, der sich gut anfühlt.
             </p>
-            <button className="text-button" onClick={logout}>
+            <button className="text-button" onClick={signOut}>
               <SignOut size={15} /> Abmelden
             </button>
           </div>
@@ -1475,10 +1508,19 @@ function PlanningApp({ user, logout }: { user: User; logout: () => void }) {
         </div>
       </div>
       {notice && (
-        <div className="toast" role="status">
-          <CheckCircle size={20} />
-          <span>{notice}</span>
-          <button aria-label="Hinweis schließen" onClick={() => setNotice("")}>
+        <div
+          className={`toast ${notice.tone}`}
+          role={notice.tone === "error" ? "alert" : "status"}
+        >
+          {notice.tone === "error" ? (
+            <WarningCircle size={20} />
+          ) : notice.tone === "info" ? (
+            <Info size={20} />
+          ) : (
+            <CheckCircle size={20} />
+          )}
+          <span>{notice.text}</span>
+          <button aria-label="Hinweis schließen" onClick={() => notify("")}>
             <X size={17} />
           </button>
         </div>
@@ -1516,7 +1558,7 @@ function PlanningApp({ user, logout }: { user: User; logout: () => void }) {
             onSaved={(message) => {
               setGuestImport(false);
               void refresh();
-              setNotice(message);
+              notify(message);
             }}
           />
         </Dialog>
@@ -1577,7 +1619,7 @@ function PlanningApp({ user, logout }: { user: User; logout: () => void }) {
                 });
                 setBooking(null);
                 await refresh();
-                setNotice("Buchung einmal im Budget erfasst.");
+                notify("Buchung einmal im Budget erfasst.");
               } catch (error) {
                 setBookingError((error as Error).message);
               } finally {

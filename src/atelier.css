@@ -789,6 +789,18 @@ button {
   border-radius: 12px;
   max-width: calc(100vw - 32px);
 }
+.toast > button {
+  min-width: 44px;
+  min-height: 44px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+.toast.error {
+  color: #963d30;
+  border-color: #d8b9ae;
+  background: #fffaf6;
+}
 @media (max-width: 1180px) {
   .main-content {
     padding: 34px 29px 24px;
@@ -1156,6 +1168,7 @@ button {
   }
   .toast {
     bottom: 89px;
+    min-width: 0;
     left: 16px;
     right: 16px;
     width: auto;

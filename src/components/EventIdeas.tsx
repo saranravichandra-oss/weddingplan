@@ -169,6 +169,20 @@ export default function EventIdeas({
           Hintergrund beim National Heritage Board <ArrowUpRight size={14} />
           <span className="sr-only"> (öffnet neuen Tab)</span>
         </a>
+        <p>
+          Auch eine ethnologische Feldstudie aus Deutschland beschreibt
+          unterschiedliche Feierkontexte. Solche Beobachtungen sind Anregungen
+          für Fragen, keine Vorlage für eure Familie.
+        </p>
+        <a
+          href="https://kups.ub.uni-koeln.de/12253/1/Kothe2020SozialeWeltenSriLankischTamilischerMigranteninDeutschland.pdf#page=106"
+          target="_blank"
+          rel="noreferrer"
+        >
+          Feldstudie in Deutschland · Kothe, 2020, S. 98{" "}
+          <ArrowUpRight size={14} />
+          <span className="sr-only"> (öffnet neuen Tab)</span>
+        </a>
       </div>
     </section>
   );

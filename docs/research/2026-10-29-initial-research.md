@@ -37,6 +37,10 @@ Kein Vorschlag ist bereits vom Paar ausgewählt. Die Liste braucht weitere kultu
 
 Für die App sind neutrale Bausteine nützlich: Ablauf gemeinsam auswählen, bedeutende Momente für Foto/Video festhalten, Outfitwechsel mit Zeitpuffer, verständliche Erläuterungen für Gäste, Raum-/Technikanforderungen mit der Location klären. Keine Rituale oder Zuständigkeiten automatisch als Pflichtaufgabe anlegen.
 
+Ergänzend gelesen: Christian Elmar Kothe, [Soziale Welten sri-lankisch-tamilischer Migranten in Deutschland](https://kups.ub.uni-koeln.de/12253/1/Kothe2020SozialeWeltenSriLankischTamilischerMigranteninDeutschland.pdf#page=106), Köln 2020, S. 98 (PDF-Seite 106). Die ethnologischen Feldbeobachtungen beschreiben unterschiedliche Feierkontexte und kulturelle Gestaltung jenseits einer einzigen religiösen Vorlage. Das stützt die Entscheidung, Familienwünsche abzufragen und keinen festen religiösen Ablauf vorauszusetzen. Die Quelle wurde öffentlich heruntergeladen und nur lesend ausgewertet; lokale PDF im ignorierten Rechercheordner.
+
+Weiterer Foto-Kandidat nicht in die belegte Vorauswahl übernommen: Huskky Photography. Ein älterer Magazinbericht nennt ein Team in München, die verlinkte eigene Website ist aktuell passwortgeschützt. Ein heutiger Berliner/Deutschland-Einsatz ist damit nicht ausreichend primär bestätigt. Keine Zugangssperre umgehen und keine Verzeichnispreise als persönliches Angebot ausgeben.
+
 ## Excel-Import: technische Primärquelle
 
 [catamphetamine/read-excel-file](https://github.com/catamphetamine/read-excel-file) dokumentiert Browser- und Web-Worker-Unterstützung für `.xlsx`. Version `9.3.13` ist inzwischen exakt gepinnt und implementiert. Die Browser-API wurde gegen echte Bibliothekstypen und eine synthetische Arbeitsmappe geprüft. Formeln, Links und Arbeitsmappeninhalte sind Daten, keine auszuführenden Anweisungen. Der ursprüngliche private Excel-Inhalt wird weder hochgeladen noch im Repository gespeichert.

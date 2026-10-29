@@ -51,6 +51,7 @@ export default function GuestImport({
     !excluded.has(row.sourceRow) &&
     (!row.duplicate || allowedDuplicates.has(row.sourceRow));
   const selected = proposals.filter(included);
+  const selectedPeople = peopleCount(selected.map((row) => row.guest));
   const duplicates = proposals.filter((row) => row.duplicate).length;
   function chooseSheet(value: number, all = sheets) {
     setSheetIndex(value);
@@ -138,7 +139,11 @@ export default function GuestImport({
           type="file"
           accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
           disabled={busy}
-          onChange={(event) => void read(event.target.files?.[0])}
+          onChange={(event) => {
+            const file = event.currentTarget.files?.[0];
+            event.currentTarget.value = "";
+            void read(file);
+          }}
         />
       </label>
       <ErrorMessage message={error} />
@@ -263,7 +268,7 @@ export default function GuestImport({
             </div>
             <div>
               <CheckCircle size={20} />
-              <strong>{peopleCount(selected.map((row) => row.guest))}</strong>
+              <strong>{selectedPeople}</strong>
               <span>Personen insgesamt</span>
             </div>
             <div>
@@ -378,7 +383,7 @@ export default function GuestImport({
                   }),
                 });
                 onSaved(
-                  `${result.created} Einträge mit ${result.people} Personen importiert${result.skipped ? ` · ${result.skipped} bereits vorhandene Einträge ausgelassen` : ""}.`,
+                  `${result.created} ${result.created === 1 ? "Eintrag" : "Einträge"} mit ${result.people} ${result.people === 1 ? "Person" : "Personen"} importiert${result.skipped ? ` · ${result.skipped} bereits vorhandene Einträge ausgelassen` : ""}.`,
                 );
               } catch (error) {
                 setError((error as Error).message);
@@ -389,7 +394,7 @@ export default function GuestImport({
           >
             {busy
               ? "Gäste werden gespeichert …"
-              : `${selected.length} Einträge mit ${peopleCount(selected.map((row) => row.guest))} Personen importieren`}
+              : `${selected.length} ${selected.length === 1 ? "Eintrag" : "Einträge"} mit ${selectedPeople} ${selectedPeople === 1 ? "Person" : "Personen"} importieren`}
           </Button>
         </>
       )}

@@ -522,7 +522,11 @@ export default function OfferReview({
                 type="file"
                 aria-label="Angebotsdatei auswählen"
                 accept=".pdf,.png,.jpg,.jpeg,.webp,.txt"
-                onChange={(e) => void upload(e.target.files?.[0])}
+                onChange={(e) => {
+                  const file = e.currentTarget.files?.[0];
+                  e.currentTarget.value = "";
+                  void upload(file);
+                }}
               />
             </label>
           ) : (
