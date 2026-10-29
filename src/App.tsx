@@ -431,6 +431,12 @@ function PlanningApp({ user, logout }: { user: User; logout: () => void }) {
       : filteredOffers.slice(-3);
   const offerRows: [string, keyof Offer][] = [
     ["Gesamtpreis", "price"],
+    ...(compared.some((offer) => !!offer.pricingNotes)
+      ? ([["Preiseinheit & Kalkulationshinweise", "pricingNotes"]] as [
+          string,
+          keyof Offer,
+        ][])
+      : []),
     ["Fotografie", "photos"],
     ["Videografie", "video"],
     ["Team", "team"],

@@ -60,6 +60,9 @@ export default function OfferCards({
               {offer.events.length > 0 && ` · ${offer.events.join(" + ")}`}
             </small>
           </div>
+          {offer.pricingNotes && (
+            <p className="offer-card-pricing-notes">{offer.pricingNotes}</p>
+          )}
           {(offer.hours || offer.team) && (
             <div className="offer-card-meta">
               {offer.hours && (

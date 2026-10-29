@@ -46,6 +46,71 @@ test("only explicitly mentioned celebrations are proposed, no cultural inference
   assert.equal(result.fields.included, undefined);
   assert.equal(result.fields.deposit, undefined);
 });
+
+test("per-person and hourly package prices never become the wedding total", () => {
+  for (const line of [
+    "Paketpreis: 159 EUR pro Person",
+    "Paketpreis pro Gast: 59,90 EUR",
+    "Gesamtpreis: 159 EUR p. P.",
+    "Paketpreis: 150 EUR / Stunde",
+    "Total price: 150 EUR per guest",
+    "Paketpreis: 159 EUR inkl. 19 % MwSt pro Person",
+    "Paketpreis: 159 EUR netto pro Person",
+    "Paketpreis: 600 EUR pro Tisch",
+    "Paketpreis: 600 EUR pro 10 Personen",
+    "Paketpreis\n159 EUR\npro Person",
+  ]) {
+    const result = extract(line);
+    assert.equal(result.fields.price, undefined, line);
+    assert.ok(
+      result.warnings.some((warning) => warning.includes("Einheitspreis")),
+      line,
+    );
+    assert.ok(result.fields.pricingNotes, line);
+  }
+});
+
+test("a price labelled only per person is preserved as a source note without calculating a total", () => {
+  const result = extract(
+    "Anbieter: Cateringfixture\nPreis pro Person: 59,90 EUR\nGästeanzahl: 200 Personen",
+  );
+  assert.equal(result.fields.price, undefined);
+  assert.match(result.fields.pricingNotes, /Preis pro Person: 59,90 EUR/);
+  assert.equal(result.evidence.pricingNotes[0].page, 1);
+  const split = extract("Paketpreis\n159 EUR\npro Person");
+  assert.match(split.fields.pricingNotes, /pro Person/);
+});
+
+test("a stated total is kept separately from a per-person breakdown", () => {
+  const result = extract("Gesamtpreis: 3.000 EUR (150 EUR pro Person)");
+  assert.equal(result.fields.price, 3000);
+});
+
+test("unit rates and estimates are not treated as full deposits or photo/video package subtotals", () => {
+  const result = extract(
+    "Fotografie-Paket: 150 EUR pro Stunde\nVideografie-Paket\n200 EUR\npro Stunde\nAnzahlung: 15 EUR pro Gast\nRestbetrag: ab 150 EUR",
+  );
+  assert.equal(result.fields.photoPrice, undefined);
+  assert.equal(result.fields.videoPrice, undefined);
+  assert.equal(result.fields.deposit, null);
+  assert.equal(result.fields.balance, null);
+});
+
+test("starting prices, estimates, ranges and negative amounts are not fixed totals", () => {
+  for (const line of [
+    "Paketpreis: ab 1500 EUR",
+    "Gesamtpreis: ca. 3000 EUR",
+    "Paketpreis: 1000–1500 EUR",
+    "Gesamtpreis: -100 EUR",
+  ]) {
+    assert.equal(extract(line).fields.price, undefined, line);
+  }
+  assert.equal(
+    extract("Gesamtpreis: 3000 EUR für ca. 150 Gäste").fields.price,
+    3000,
+  );
+  assert.equal(extract("Gesamtpreis: 0 EUR").fields.price, 0);
+});
 test("percentage deposits stay payment terms, and excluded VAT is not gross", () => {
   const result = extract(
     "Anbieter: Teststudio\nGesamtpreis: 2.000 EUR nicht inkl. MwSt\nAnzahlung: 30 %",

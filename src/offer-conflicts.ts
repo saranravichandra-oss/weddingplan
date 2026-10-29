@@ -60,6 +60,7 @@ export const offerLabels: Partial<Record<keyof Offer, string>> = {
   price: "Gesamtpreis",
   currency: "Währung",
   basis: "Preisbasis",
+  pricingNotes: "Preiseinheit & Kalkulationshinweise",
   hours: "Begleitung / Aufnahmezeit",
   team: "Team",
   photos: "Fotografie",

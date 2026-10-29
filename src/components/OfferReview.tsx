@@ -778,6 +778,13 @@ export default function OfferReview({
             {input("team", "Team")}
             {input("hours", "Begleitung / Aufnahmezeit")}
           </div>
+          {draft.pricingNotes && (
+            <div className="review-price-notes">
+              <strong>Preiseinheit & Kalkulationshinweise</strong>
+              <p>{draft.pricingNotes}</p>
+              {source("pricingNotes")}
+            </div>
+          )}
           {area("photos", "Fotografie: Leistungsumfang")}
           {area("video", "Videografie: Leistungsumfang")}
           {area("delivery", "Bearbeitungs- und Lieferzeiten")}
@@ -790,6 +797,7 @@ export default function OfferReview({
           <details className="further-offer-fields">
             <summary>Weitere Angebotsdetails und offene Punkte</summary>
             <div className="form-stack">
+              {area("pricingNotes", "Preiseinheit & Kalkulationshinweise")}
               <label>
                 Mit Dienstleister verknüpfen
                 <select

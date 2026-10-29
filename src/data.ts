@@ -34,6 +34,7 @@ export type Offer = Stored & {
   price: number | null;
   currency: string;
   basis: string;
+  pricingNotes: string;
   hours: string;
   team: string;
   photos: string;
@@ -187,6 +188,7 @@ export const emptyOffer: Omit<Offer, keyof Stored> = {
   price: null,
   currency: "Nicht angegeben",
   basis: "Nicht angegeben",
+  pricingNotes: "",
   hours: "",
   team: "",
   photos: "",

@@ -59,6 +59,7 @@ export const schemas = {
     category: short.default("Foto & Video"),
     events: z.array(short).max(20).default([]),
     price: amount.default(null),
+    pricingNotes: text.default(""),
     currency: z
       .enum(["EUR", "USD", "GBP", "Nicht angegeben"])
       .default("Nicht angegeben"),

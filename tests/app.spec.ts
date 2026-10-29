@@ -902,3 +902,68 @@ test("optional cultural planning ideas prepare an editable task without silently
   expect(after.events).toEqual(before.events);
   expect(after.providers).toEqual(before.providers);
 });
+
+test("per-person quotes retain their pricing unit and never invent a total from the guest count", async ({
+  page,
+}) => {
+  await login(page);
+  await page
+    .getByRole("button", { name: "Angebot hinzufügen", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Text einfügen", exact: true })
+    .click();
+  await page
+    .getByRole("textbox", { name: "Angebotstext", exact: true })
+    .fill(
+      "Anbieter: Personenpreis Browser Fixture\nPreis pro Person: 59,90 EUR inkl. MwSt\nGästeanzahl: 200 Personen",
+    );
+  await page
+    .getByRole("button", { name: "Text speichern und auswerten", exact: true })
+    .click();
+  await expect(
+    page.getByRole("textbox", { name: "Anbieter", exact: true }),
+  ).toHaveValue("Personenpreis Browser Fixture");
+  await expect(
+    page.getByRole("spinbutton", { name: "Gesamtpreis", exact: true }),
+  ).toHaveValue("");
+  await expect(page.locator(".review-price-notes")).toContainText("59,90 EUR");
+  await expect(page.locator(".review-price-notes")).toContainText(
+    "Preis pro Person",
+  );
+  await page
+    .getByRole("checkbox", { name: /Ich habe Original und Angaben geprüft/ })
+    .check();
+  await page
+    .getByRole("button", {
+      name: "Bestätigt in den Vergleich übernehmen",
+      exact: true,
+    })
+    .click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await page.reload();
+  await section(page, "Dienstleister");
+  await page
+    .getByRole("searchbox", { name: "Anbieter suchen" })
+    .fill("Personenpreis Browser Fixture");
+  await page
+    .getByRole("button", { name: "Kartenübersicht", exact: true })
+    .click();
+  const card = page.getByRole("article", {
+    name: "Personenpreis Browser Fixture",
+    exact: true,
+  });
+  await expect(card.locator(".offer-card-price")).toContainText(
+    "Nicht angegeben",
+  );
+  await expect(card.locator(".offer-card-pricing-notes")).toContainText(
+    "59,90 EUR",
+  );
+  const state = await (await page.request.get("/api/state")).json();
+  const offer = state.offers.find(
+    (value: { name: string }) => value.name === "Personenpreis Browser Fixture",
+  );
+  expect(offer.price).toBeNull();
+  expect(offer.pricingNotes).toContain("Preis pro Person");
+  expect(offer.evidence.pricingNotes[0].page).toBe(1);
+});
