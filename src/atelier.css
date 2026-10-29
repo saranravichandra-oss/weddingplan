@@ -1,4 +1,42 @@
 /* Wedding SS Atelier: one calm hierarchy across desktop, mobile and review. */
+.mobile-sections-button,
+.mobile-nav-name {
+  display: none;
+}
+.all-sections-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.all-sections-grid a {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  min-height: 48px;
+  padding: 13px 15px;
+  border: 1px solid #e1e5d7;
+  border-radius: 10px;
+  color: #244d3c;
+  font-size: 14px;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+.all-sections-grid a svg {
+  flex-shrink: 0;
+}
+.all-sections-grid a[aria-current="page"] {
+  background: #e6eddc;
+  border-color: #aab89b;
+}
+.all-sections-grid a:hover {
+  background: #edf0e5;
+}
+@media (max-width: 500px) {
+  .all-sections-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
 .offer-draft-notice {
   padding: 13px 16px;
   border: 1px solid #d5dec8;
@@ -912,8 +950,8 @@ button {
     display: none;
   }
   .sidebar nav {
-    display: flex;
-    flex-direction: row;
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     position: static;
     height: auto;
     width: 100%;
@@ -922,38 +960,60 @@ button {
     background: transparent;
     justify-content: flex-start;
     gap: 0;
-    overflow-x: auto;
+    overflow-x: visible;
     max-width: 100%;
     scrollbar-width: none;
   }
-  .sidebar nav > a {
+  .sidebar nav > a,
+  .sidebar nav > .mobile-sections-button {
     display: flex;
-    flex: 0 0 85px;
+    flex: none;
     max-width: none;
-    min-width: 85px;
+    min-width: 0;
     flex-direction: column;
     gap: 5px;
     justify-content: center;
     align-items: center;
     min-height: 57px;
-    padding: 7px 8px;
+    padding: 7px 2px;
     color: #65765f;
     border-radius: 10px;
+    border: 0;
+    background: transparent;
+    font-family: inherit;
+    cursor: pointer;
   }
-  .sidebar nav > a > span {
+  .sidebar nav > a.mobile-secondary {
+    display: none;
+  }
+  .sidebar nav > .mobile-sections-button svg {
+    width: 22px;
+    height: 22px;
+  }
+  .sidebar nav > a > span,
+  .sidebar nav > .mobile-sections-button > span {
     display: block;
     font-size: 10px;
     white-space: nowrap;
   }
-  .sidebar nav > a.active {
+  .sidebar nav > a > .desktop-nav-name {
+    display: none;
+  }
+  .sidebar nav > a > .mobile-nav-name {
+    display: block;
+  }
+  .sidebar nav > a.active,
+  .sidebar nav > .mobile-sections-button.active {
     background: #e6eddc;
     color: #244d3c;
   }
-  .sidebar nav > a:hover {
+  .sidebar nav > a:hover,
+  .sidebar nav > .mobile-sections-button:hover {
     color: #244d3c;
     background: #edf0e5;
   }
-  .sidebar nav > a:focus-visible {
+  .sidebar nav > a:focus-visible,
+  .sidebar nav > .mobile-sections-button:focus-visible {
     outline-color: #244d3c;
     outline-offset: -3px;
   }
@@ -1173,6 +1233,12 @@ button {
     right: 16px;
     width: auto;
     transform: none;
+  }
+}
+@media (prefers-contrast: more) and (max-width: 650px) {
+  .sidebar nav > a:not(.active),
+  .sidebar nav > .mobile-sections-button {
+    color: #244d3c;
   }
 }
 @media (prefers-reduced-motion: reduce) {

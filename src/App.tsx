@@ -13,6 +13,7 @@ import {
   Coins,
   Compass,
   DownloadSimple,
+  DotsThree,
   FileText,
   Flower,
   Heart,
@@ -84,6 +85,12 @@ const navigation: { label: Section; icon: Icon }[] = [
   { label: "Veranstaltungen", icon: CalendarBlank },
   { label: "Dokumente", icon: FileText },
   { label: "Gemeinsam", icon: Heart },
+];
+const mobilePrimary: Section[] = [
+  "Übersicht",
+  "Dienstleister",
+  "Gäste",
+  "Budget",
 ];
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -184,6 +191,7 @@ function PlanningApp({
   } | null>(null);
   const [reviewUnsaved, setReviewUnsaved] = useState(false);
   const [reviewSaving, setReviewSaving] = useState(false);
+  const [allSections, setAllSections] = useState(false);
   useEffect(() => {
     if (!reviewSaving) return;
     const warn = (event: BeforeUnloadEvent) => {
@@ -255,6 +263,7 @@ function PlanningApp({
     return () => clearTimeout(timer);
   }, [notice, notify]);
   const go = (value: Section) => {
+    setAllSections(false);
     if (value !== currentSection())
       history.pushState({}, "", sectionHref(value));
     setSection(value);
@@ -1412,8 +1421,14 @@ function PlanningApp({
           <nav aria-label="Hauptnavigation">
             {navigation.map(({ label, icon: IconComponent }) => (
               <a
-                className={section === label ? "active" : ""}
+                className={`${section === label ? "active" : ""} ${mobilePrimary.includes(label) ? "" : "mobile-secondary"}`}
                 href={sectionHref(label)}
+                aria-label={
+                  label === "Dienstleister"
+                    ? "Angebote und Dienstleister"
+                    : label
+                }
+                title={label}
                 aria-current={section === label ? "page" : undefined}
                 key={label}
                 onClick={(event) => {
@@ -1433,9 +1448,28 @@ function PlanningApp({
                   size={20}
                   weight={section === label ? "fill" : "regular"}
                 />
-                <span>{label}</span>
+                <span
+                  className={
+                    label === "Dienstleister" ? "desktop-nav-name" : undefined
+                  }
+                >
+                  {label}
+                </span>
+                {label === "Dienstleister" && (
+                  <span className="mobile-nav-name">Angebote</span>
+                )}
               </a>
             ))}
+            <button
+              className={`mobile-sections-button ${!mobilePrimary.includes(section) ? "active" : ""}`}
+              aria-label="Mehr: alle Planungsbereiche öffnen"
+              aria-haspopup="dialog"
+              aria-expanded={allSections}
+              onClick={() => setAllSections(true)}
+            >
+              <DotsThree size={24} weight="bold" />
+              <span>Mehr</span>
+            </button>
           </nav>
           <div className="sidebar-bottom">
             <Flower size={30} weight="thin" />
@@ -1540,6 +1574,41 @@ function PlanningApp({
             <X size={17} />
           </button>
         </div>
+      )}
+      {allSections && (
+        <Dialog
+          title="Alle Planungsbereiche"
+          onClose={() => setAllSections(false)}
+        >
+          <nav className="all-sections-grid" aria-label="Alle Planungsbereiche">
+            {navigation.map(({ label, icon: IconComponent }) => (
+              <a
+                key={label}
+                href={sectionHref(label)}
+                aria-label={label}
+                aria-current={section === label ? "page" : undefined}
+                onClick={(event) => {
+                  if (
+                    !event.metaKey &&
+                    !event.ctrlKey &&
+                    !event.shiftKey &&
+                    !event.altKey &&
+                    event.button === 0
+                  ) {
+                    event.preventDefault();
+                    go(label);
+                  }
+                }}
+              >
+                <IconComponent
+                  size={22}
+                  weight={section === label ? "fill" : "regular"}
+                />
+                <span>{label}</span>
+              </a>
+            ))}
+          </nav>
+        </Dialog>
       )}
       {editor && (
         <Dialog

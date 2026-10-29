@@ -35,10 +35,28 @@ async function login(page: Page, asPartner = false) {
   fixtureCookies.set(account, await page.context().cookies());
 }
 async function section(page: Page, name: string) {
-  await page
+  await expect(
+    page.getByRole("navigation", { name: "Hauptnavigation" }),
+  ).toBeVisible();
+  const link = page
     .getByRole("navigation", { name: "Hauptnavigation" })
-    .getByRole("link", { name, exact: true })
-    .click();
+    .getByRole("link", {
+      name: name === "Dienstleister" ? "Angebote und Dienstleister" : name,
+      exact: true,
+    });
+  if (await link.isVisible()) await link.click();
+  else {
+    await page
+      .getByRole("button", {
+        name: "Mehr: alle Planungsbereiche öffnen",
+        exact: true,
+      })
+      .click();
+    await page
+      .getByRole("dialog", { name: "Alle Planungsbereiche", exact: true })
+      .getByRole("link", { name, exact: true })
+      .click();
+  }
 }
 test.beforeAll(async ({ request }) => {
   const status = await (await request.get("/api/auth/status")).json();
@@ -71,7 +89,7 @@ test("all planning areas work on desktop and mobile with no runtime errors or ho
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await login(page);
-  for (const width of [1440, 390, 320]) {
+  for (const width of [1440, 768, 390, 320]) {
     await page.setViewportSize({ width, height: 950 });
     for (const name of [
       "Übersicht",
@@ -109,6 +127,93 @@ test("all planning areas work on desktop and mobile with no runtime errors or ho
   }
   expect(errors).toEqual([]);
 });
+test("mobile navigation exposes every area through More and tablet icons keep their accessible names", async ({
+  page,
+}, testInfo) => {
+  await page.setViewportSize({ width: 320, height: 900 });
+  await login(page);
+  const nav = page.getByRole("navigation", { name: "Hauptnavigation" });
+  await expect(nav.getByRole("link")).toHaveCount(4);
+  const providerLink = nav.getByRole("link", {
+    name: "Angebote und Dienstleister",
+    exact: true,
+  });
+  await expect(providerLink.locator(".desktop-nav-name")).toBeHidden();
+  await expect(providerLink.locator(".mobile-nav-name")).toBeVisible();
+  const more = nav.getByRole("button", {
+    name: "Mehr: alle Planungsbereiche öffnen",
+    exact: true,
+  });
+  for (const item of await nav.locator("a:visible, button:visible").all()) {
+    const box = await item.boundingBox();
+    expect(box!.width).toBeGreaterThanOrEqual(44);
+    expect(box!.height).toBeGreaterThanOrEqual(44);
+  }
+  await more.click();
+  const menu = page.getByRole("dialog", {
+    name: "Alle Planungsbereiche",
+    exact: true,
+  });
+  await expect(more).toHaveAttribute("aria-expanded", "true");
+  await expect(menu.getByRole("link")).toHaveCount(9);
+  await expect(
+    menu.getByRole("link", { name: "Dokumente", exact: true }),
+  ).toHaveAttribute("href", /bereich=dokumente/);
+  await menu.screenshot({ path: testInfo.outputPath("all-sections-320.png") });
+  await page.keyboard.press("Escape");
+  await expect(menu).toHaveCount(0);
+  await expect(more).toBeFocused();
+  await expect(more).toHaveAttribute("aria-expanded", "false");
+  await more.click();
+  await menu.getByRole("link", { name: "Dokumente", exact: true }).click();
+  await expect(menu).toHaveCount(0);
+  await expect(page).toHaveURL(/bereich=dokumente/);
+  await expect(more).toHaveClass(/active/);
+  await more.click();
+  await expect(
+    menu.getByRole("link", { name: "Dokumente", exact: true }),
+  ).toHaveAttribute("aria-current", "page");
+  await page.keyboard.press("Escape");
+  await page.goBack();
+  await expect(
+    page.getByRole("heading", { name: /Ein großes Ja/ }),
+  ).toBeVisible();
+  await page.emulateMedia({ contrast: "more" });
+  await expect(
+    nav.getByRole("link", { name: "Budget", exact: true }),
+  ).toHaveCSS("color", "rgb(36, 77, 60)");
+  await page.emulateMedia({ contrast: "no-preference" });
+  await page.setViewportSize({ width: 768, height: 950 });
+  await expect(more).toBeHidden();
+  await expect(nav.getByRole("link")).toHaveCount(9);
+  for (const name of [
+    "Übersicht",
+    "Dienstleister",
+    "Entdecken",
+    "Gäste",
+    "Budget",
+    "Aufgaben",
+    "Veranstaltungen",
+    "Dokumente",
+    "Gemeinsam",
+  ]) {
+    const link = nav.getByRole("link", {
+      name: name === "Dienstleister" ? "Angebote und Dienstleister" : name,
+      exact: true,
+    });
+    await expect(link).toBeVisible();
+    await expect(link).toHaveAttribute("title", name);
+  }
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBeTruthy();
+  await page.setViewportSize({ width: 1440, height: 950 });
+  await expect(providerLink.locator(".desktop-nav-name")).toBeVisible();
+  await expect(providerLink.locator(".mobile-nav-name")).toBeHidden();
+});
+
 test("text extraction proposes values with source evidence; confirmed unknown price survives reload", async ({
   page,
 }) => {
@@ -942,6 +1047,9 @@ test("mobile offers show readable complete cards and can switch to a side by sid
   });
   await page.screenshot({
     path: testInfo.outputPath("offer-cards-viewport-390.png"),
+  });
+  await card.screenshot({
+    path: testInfo.outputPath("known-offer-card-390.png"),
   });
   await page
     .getByRole("button", { name: "Nebeneinander", exact: true })
