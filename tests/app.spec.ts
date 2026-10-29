@@ -497,6 +497,14 @@ test("researched suggestions stay separate until explicitly remembered and keep 
   });
   await expect(styling).toContainText("London");
   await expect(styling).toContainText("nicht bestätigt");
+  await page.setViewportSize({ width: 320, height: 900 });
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBeTruthy();
+  await styling.screenshot({ path: testInfo.outputPath("styling-320.png") });
+  await page.setViewportSize({ width: 1440, height: 950 });
   await expect(styling.getByRole("link", { name: /^Quelle/ })).toHaveAttribute(
     "href",
     "https://vithyahairandmakeup.com/about/",
