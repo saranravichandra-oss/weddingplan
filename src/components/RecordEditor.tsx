@@ -67,11 +67,14 @@ export default function RecordEditor({
       </select>
     </label>
   );
-  const eventSelect = select("event", "Veranstaltung", [
+  const eventOptions = [
     "",
     ...state.events.map((e) => e.name),
     "Mehrere Veranstaltungen",
-  ]);
+  ];
+  if (value("event") && !eventOptions.includes(value("event")))
+    eventOptions.push(value("event"));
+  const eventSelect = select("event", "Veranstaltung", eventOptions);
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setBusy(true);
@@ -191,6 +194,11 @@ export default function RecordEditor({
       {kind === "events" && (
         <>
           {field("name", "Veranstaltung", "text", true)}
+          <small>
+            Beim Umbenennen bleiben zugeordnete Aufgaben, Dienstleister,
+            Angebote und Kosten verbunden. Gästerückmeldungen bleiben bei
+            derselben Feier.
+          </small>
           {field("date", "Datum", "date")}
           {field("location", "Ort / Adresse")}
           {field("guests", "Geplante Gäste (leer = offen)", "number")}

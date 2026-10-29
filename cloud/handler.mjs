@@ -38,6 +38,11 @@ async function query(operation) {
   const { data, error } = await operation;
   if (error) {
     const errorCode = error.message || "";
+    if (/event_name_taken/.test(errorCode))
+      fail(
+        409,
+        "Diesen Veranstaltungsnamen gibt es bereits. Bitte einen anderen Namen wählen.",
+      );
     if (
       /conflict|already_booked|booking_state|linked_record|invitation_invalid|storage_limit|migration_closed|protected_record|not_found/.test(
         errorCode,

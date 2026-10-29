@@ -2,6 +2,7 @@ import { DatabaseSync } from "node:sqlite";
 import { mkdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { randomUUID } from "node:crypto";
+import { renamedReference } from "./event-references.mjs";
 
 export const kinds = [
   "tasks",
@@ -33,6 +34,7 @@ export function openStore(directory) {
       )
       .run(user, action, id, now());
   function create(kind, data, user = null, id = randomUUID()) {
+    if (kind === "events") assertEventName(id, data.name);
     const date = now();
     db.prepare(
       "INSERT INTO records(id,kind,data,updated_at,updated_by) VALUES(?,?,?,?,?)",
@@ -75,6 +77,10 @@ export function openStore(directory) {
     const date = now();
     db.exec("SAVEPOINT record_update");
     try {
+      const previous = kind === "events" ? get(kind, id) : null;
+      const renaming =
+        previous?.version === version && previous.name !== data.name;
+      if (renaming) assertEventName(id, data.name);
       db.prepare(
         "INSERT INTO record_history(record_id,kind,data,version,updated_at,updated_by) SELECT id,kind,data,version,updated_at,updated_by FROM records WHERE id=? AND kind=? AND version=?",
       ).run(id, kind, version);
@@ -83,12 +89,46 @@ export function openStore(directory) {
           "UPDATE records SET data=?,version=version+1,updated_at=?,updated_by=? WHERE id=? AND kind=? AND version=?",
         )
         .run(JSON.stringify(data), date, user, id, kind, version);
+      if (result.changes && renaming) {
+        const snapshot = db
+          .prepare(
+            "SELECT id,kind,data,version FROM records WHERE kind IN ('tasks','providers','offers','costs')",
+          )
+          .all()
+          .map((record) => ({ ...record, data: JSON.parse(record.data) }));
+        const offers = new Map(
+          snapshot
+            .filter((record) => record.kind === "offers")
+            .map((record) => [record.id, record.data]),
+        );
+        for (const record of snapshot) {
+          const changed = renamedReference(
+            record.kind,
+            record.data,
+            previous.name,
+            data.name,
+            offers.get(record.data.offerId),
+          );
+          if (changed !== record.data)
+            update(record.kind, record.id, changed, record.version, user);
+        }
+      }
       db.exec("RELEASE record_update");
       return result.changes ? get(kind, id) : null;
     } catch (error) {
       db.exec("ROLLBACK TO record_update; RELEASE record_update");
       throw error;
     }
+  }
+  function assertEventName(id, name) {
+    if (
+      list("events").some(
+        (event) =>
+          event.id !== id &&
+          event.name.trim().toLowerCase() === name.trim().toLowerCase(),
+      )
+    )
+      throw new Error("event_name_taken");
   }
   function documentList() {
     return db

@@ -10,7 +10,7 @@
     "test:e2e": "playwright test",
     "format": "prettier --write src server scripts tests playwright.config.ts index.html README.md",
     "start": "node server/index.mjs --production",
-    "test:unit": "node --test tests/server.test.mjs tests/extract.test.mjs tests/guest-import.test.mjs tests/offer-conflicts.test.mjs",
+    "test:unit": "node --test tests/server.test.mjs tests/extract.test.mjs tests/guest-import.test.mjs tests/offer-conflicts.test.mjs tests/event-renaming.test.mjs",
     "backup": "node scripts/backup.mjs",
     "build:cloud": "node scripts/prepare-browser-ocr.mjs && tsc --noEmit && vite build --mode cloud --outDir dist-cloud"
   },
@@ -44,6 +44,7 @@
     "zod": "4.6.7"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "0.5.13",
     "@playwright/test": "^1.64.1",
     "@types/express": "5.0.6",
     "@types/multer": "2.3.0",

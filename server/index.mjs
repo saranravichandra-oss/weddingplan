@@ -375,12 +375,10 @@ app.post("/api/guests/import", session, (req, res) => {
       Object.keys(row.guest.attendance).some((id) => !eventIds.has(id)),
     )
   )
-    return res
-      .status(400)
-      .json({
-        error:
-          "Die Veranstaltungszuordnung ist nicht mehr aktuell. Bitte die Vorschau neu laden.",
-      });
+    return res.status(400).json({
+      error:
+        "Die Veranstaltungszuordnung ist nicht mehr aktuell. Bitte die Vorschau neu laden.",
+    });
   let created = 0,
     skipped = 0,
     people = 0;
@@ -872,6 +870,13 @@ app.use("/api", (req, res) =>
   res.status(404).json({ error: "Unbekannter API-Endpunkt." }),
 );
 app.use((error, req, res, next) => {
+  if (error.message === "event_name_taken")
+    return res
+      .status(409)
+      .json({
+        error:
+          "Diesen Veranstaltungsnamen gibt es bereits. Bitte einen anderen Namen wählen.",
+      });
   if (error instanceof z.ZodError)
     return res.status(400).json({
       error: "Bitte die Eingaben prüfen.",

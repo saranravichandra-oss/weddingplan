@@ -118,7 +118,7 @@ export const schemas = {
     .object({
       label: name,
       category: short.default(""),
-      event: short.default(""),
+      event: z.string().trim().max(5000).default(""),
       stage: z.enum(["Geschätzt", "Angebot", "Beauftragt"]),
       amount,
       paid: amount.default(null),

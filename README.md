@@ -115,3 +115,7 @@ npm audit --omit=dev
 Die Tests verwenden getrennte temporäre Datenbanken und synthetische Dokumente. Sie prüfen Anmeldung, CSRF, Einladungen, gemeinsame Sicht, konkurrierende Änderungen, dauerhafte Speicherung über Serverneustart, private Originale, echte Screenshot- und Scan-PDF-OCR, fehlende Preise, einmalige Buchung, Gästeantworten pro Feier, Browserabläufe, Desktop und Mobilansicht. Eure echte `.wedding-data` wird nicht für Tests verwendet.
 
 Technische Grundlagen: [Node SQLite](https://nodejs.org/api/sqlite.html), [Tesseract.js API](https://github.com/naptha/tesseract.js/blob/master/docs/api.md), [PDF.js Node-Beispiel](https://github.com/mozilla/pdf.js/blob/master/examples/node/pdf2png/pdf2png.mjs).
+
+Die Cloud-SQL-Tests in `tests/event-renaming.test.mjs` verwenden [PGlite](https://pglite.dev/docs/) als ausschließlich lokale Postgres-Instanz im Arbeitsspeicher. Sie benötigen keine Cloud-Zugangsdaten und prüfen auch den vollständigen Rollback bei einem Fehler in einer verknüpften Änderung. Die Bibliothek ist nur eine Entwicklungsabhängigkeit. Die Suite unter `tests/cloud/` setzt dagegen eine leere Fixture-Umgebung voraus und darf niemals gegen die bereits genutzte Produktion laufen.
+
+Die Migration zur sicheren Veranstaltungsumbenennung liegt zusätzlich lesbar in `cloud/event-renaming.sql`. Sie ändert keine bestehenden Planungsdaten; erst eine ausdrücklich gespeicherte Namensänderung aktualisiert zugeordnete strukturierte Verweise innerhalb derselben Transaktion. Originalzitate und Gästerückmeldungen mit Veranstaltungs-ID bleiben erhalten.

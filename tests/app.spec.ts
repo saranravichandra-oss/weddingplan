@@ -1171,3 +1171,148 @@ test("Excel mapping stays usable on a narrow phone and closing the preview saves
   const after = await (await page.request.get("/api/state")).json();
   expect(after.guests).toEqual(before.guests);
 });
+
+test("renaming a celebration retains shared associations, guest responses and combined booked costs", async ({
+  page,
+}) => {
+  await login(page);
+  const auth = await (await page.request.get("/api/auth/me")).json();
+  const headers = { "X-CSRF-Token": auth.csrf };
+  const before = await (await page.request.get("/api/state")).json();
+  const event = before.events.find(
+    (value: { name: string }) => value.name === "Reception",
+  );
+  async function create(kind: string, data: object) {
+    const response = await page.request.post(`/api/records/${kind}`, {
+      headers,
+      data,
+    });
+    expect(response.ok()).toBeTruthy();
+    return response.json();
+  }
+  const task = await create("tasks", {
+    title: "Verknüpfte Testaufgabe",
+    event: event.name,
+  });
+  const provider = await create("providers", {
+    name: "Verknüpfter Testservice",
+    category: "Foto & Video",
+    event: event.name,
+  });
+  const offer = await create("offers", {
+    name: "Verknüpftes Testangebot",
+    providerId: provider.id,
+    events: [before.events[0].name, event.name],
+    confirmed: true,
+    price: 1234,
+    currency: "EUR",
+  });
+  const booking = await page.request.post(`/api/offers/${offer.id}/book`, {
+    headers,
+    data: { amount: 1234, paid: 234, due: "", version: offer.version },
+  });
+  expect(booking.ok()).toBeTruthy();
+  const cost = await booking.json();
+  const guest = await create("guests", {
+    name: "Verknüpfte Testfamilie",
+    type: "Gruppe",
+    partySize: 3,
+    attendance: { [event.id]: "Vorgesehen" },
+  });
+  try {
+    await page.reload();
+    await section(page, "Veranstaltungen");
+    await page
+      .locator(".event-detail")
+      .filter({
+        has: page.getByRole("heading", { name: event.name, exact: true }),
+      })
+      .getByRole("button", { name: "Planung bearbeiten" })
+      .click();
+    let dialog = page.getByRole("dialog");
+    await dialog
+      .getByRole("textbox", { name: "Veranstaltung", exact: true })
+      .fill("Unsere Abendfeier");
+    await dialog.getByRole("button", { name: "Dauerhaft speichern" }).click();
+    await expect(
+      page.getByRole("heading", { name: "Unsere Abendfeier", exact: true }),
+    ).toBeVisible();
+    let after = await (await page.request.get("/api/state")).json();
+    expect(
+      after.tasks.find((row: { id: string }) => row.id === task.id).event,
+    ).toBe("Unsere Abendfeier");
+    expect(
+      after.providers.find((row: { id: string }) => row.id === provider.id)
+        .event,
+    ).toBe("Unsere Abendfeier");
+    expect(
+      after.offers.find((row: { id: string }) => row.id === offer.id).events,
+    ).toEqual([before.events[0].name, "Unsere Abendfeier"]);
+    expect(
+      after.guests.find((row: { id: string }) => row.id === guest.id),
+    ).toEqual(guest);
+    const stale = await page.request.put(`/api/records/tasks/${task.id}`, {
+      headers,
+      data: { ...task, title: "Veraltete Bearbeitung" },
+    });
+    expect(stale.status()).toBe(409);
+    await section(page, "Budget");
+    await page
+      .getByRole("button", {
+        name: "Verknüpftes Testangebot bearbeiten",
+        exact: true,
+      })
+      .click();
+    dialog = page.getByRole("dialog");
+    await expect(dialog.locator('select[name="event"]')).toHaveValue(
+      `${before.events[0].name} + Unsere Abendfeier`,
+    );
+    await dialog
+      .getByRole("spinbutton", {
+        name: "Bereits gezahlt in EUR (leer = unbekannt)",
+        exact: true,
+      })
+      .fill("300");
+    await dialog.getByRole("button", { name: "Dauerhaft speichern" }).click();
+    await expect(dialog).toHaveCount(0);
+    after = await (await page.request.get("/api/state")).json();
+    const savedCost = after.costs.find(
+      (row: { id: string }) => row.id === cost.id,
+    );
+    expect(savedCost.event).toBe(
+      `${before.events[0].name} + Unsere Abendfeier`,
+    );
+    expect(savedCost.amount).toBe(1234);
+    expect(savedCost.paid).toBe(300);
+    await section(page, "Veranstaltungen");
+    await page
+      .locator(".event-detail")
+      .filter({
+        has: page.getByRole("heading", {
+          name: "Unsere Abendfeier",
+          exact: true,
+        }),
+      })
+      .getByRole("button", { name: "Planung bearbeiten" })
+      .click();
+    dialog = page.getByRole("dialog");
+    await dialog
+      .getByRole("textbox", { name: "Veranstaltung", exact: true })
+      .fill(before.events[0].name);
+    await dialog.getByRole("button", { name: "Dauerhaft speichern" }).click();
+    await expect(dialog.getByRole("alert")).toContainText(
+      "Veranstaltungsnamen gibt es bereits",
+    );
+    await dialog.getByRole("button", { name: "Dialog schließen" }).click();
+  } finally {
+    const latest = await (await page.request.get("/api/state")).json();
+    const current = latest.events.find(
+      (row: { id: string }) => row.id === event.id,
+    );
+    const restored = await page.request.put(`/api/records/events/${event.id}`, {
+      headers,
+      data: { ...current, name: event.name },
+    });
+    expect(restored.ok()).toBeTruthy();
+  }
+});

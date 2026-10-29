@@ -318,7 +318,7 @@ function PlanningApp({
   ).length;
   const hall = state.costs.find(
     (c) =>
-      c.event === "Standesamt" &&
+      c.event === (state.events[0]?.name || "Standesamt") &&
       c.category === "Location" &&
       c.stage === "Beauftragt",
   );
