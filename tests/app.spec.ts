@@ -586,6 +586,152 @@ test("actual screenshot OCR fills a price and keeps its page source", async ({
   await section(page, "Dokumente");
   await expect(page.getByText("fixture.png", { exact: true })).toBeVisible();
 });
+test("cloud built original previews can recover without reanalysis or losing reviewed corrections", async ({
+  page,
+}, testInfo) => {
+  test.setTimeout(60000);
+  await login(page);
+  const auth = await (await page.request.get("/api/auth/me")).json();
+  const created = await page.request.post("/api/documents", {
+    headers: { "X-CSRF-Token": auth.csrf },
+    multipart: {
+      file: {
+        name: "cloud-preview-synthetic.png",
+        mimeType: "image/png",
+        buffer: offerImage().png,
+      },
+    },
+  });
+  expect(created.ok()).toBeTruthy();
+  const { id } = await created.json();
+  await expect
+    .poll(
+      async () =>
+        (await (await page.request.get("/api/documents/" + id)).json()).status,
+      { timeout: 40000 },
+    )
+    .toBe("complete");
+  const metadata = await (
+    await page.request.get("/api/documents/" + id)
+  ).json();
+  const { readFile } = await import("node:fs/promises");
+  const { resolve, sep } = await import("node:path");
+  const root = resolve("dist-cloud"),
+    origin = new URL(page.url()).origin;
+  // Exercise the actual cloud browser bundle against this isolated local backend.
+  await page.route(
+    (url) =>
+      url.origin === origin &&
+      (url.pathname === "/" || url.pathname.startsWith("/assets/")),
+    async (route) => {
+      const pathname = decodeURIComponent(
+        new URL(route.request().url()).pathname,
+      );
+      if (pathname === "/") {
+        const response = await route.fetch();
+        const headers = response.headers();
+        delete headers["content-length"];
+        delete headers["content-encoding"];
+        return route.fulfill({
+          response,
+          headers,
+          body: await readFile(resolve(root, "index.html")),
+        });
+      }
+      const file = resolve(root, "." + pathname);
+      expect(file.startsWith(root + sep)).toBeTruthy();
+      const ext = pathname.split(".").pop(),
+        types: Record<string, string> = {
+          js: "application/javascript",
+          mjs: "application/javascript",
+          css: "text/css",
+          woff2: "font/woff2",
+        };
+      await route.fulfill({
+        body: await readFile(file),
+        contentType: types[ext || ""] || "application/octet-stream",
+      });
+    },
+  );
+  await page.route("**/api/documents/" + id, (route) =>
+    route.fulfill({ json: { ...metadata, uploaded: true } }),
+  );
+  let files = 0,
+    analyses = 0;
+  await page.route("**/api/documents/" + id + "/file", async (route) => {
+    if (++files === 1)
+      return route.fulfill({
+        status: 503,
+        json: { error: "Synthetisch nicht erreichbares Original" },
+      });
+    if (files === 2)
+      return route.fulfill({
+        status: 200,
+        contentType: "image/png",
+        body: "abgeschnitten",
+      });
+    await route.continue();
+  });
+  await page.route("**/api/documents/" + id + "/analysis", (route) => {
+    analyses++;
+    return route.abort();
+  });
+  const offersBefore = (await (await page.request.get("/api/state")).json())
+    .offers;
+  await page.reload();
+  await section(page, "Dokumente");
+  await page
+    .locator('.document-row[data-document-id="' + id + '"]')
+    .getByRole("button", { name: "Prüfen", exact: true })
+    .click();
+  const dialog = page.getByRole("dialog");
+  await expect.poll(() => files).toBe(1);
+  await page.setViewportSize({ width: 390, height: 900 });
+  const provider = dialog.getByRole("textbox", {
+    name: "Anbieter",
+    exact: true,
+  });
+  await provider.fill("Eigene Vorschaukorrektur");
+  const confirmation = dialog.getByRole("checkbox", { name: /Ich habe/ });
+  await confirmation.check();
+  await expect(
+    dialog.getByRole("button", { name: "Vorschau erneut laden", exact: true }),
+  ).toBeVisible();
+  await dialog
+    .getByRole("button", { name: "Vorschau erneut laden", exact: true })
+    .click();
+  await expect(
+    dialog.getByRole("region", { name: "Originalvorschau", exact: true }),
+  ).toContainText("unvollständig");
+  await expect(provider).toHaveValue("Eigene Vorschaukorrektur");
+  await expect(confirmation).toBeChecked();
+  await dialog
+    .getByRole("region", { name: "Originalvorschau", exact: true })
+    .screenshot({ path: testInfo.outputPath("preview-retry-390.png") });
+  await dialog
+    .getByRole("button", { name: "Vorschau erneut laden", exact: true })
+    .click();
+  const image = dialog.getByAltText("Gespeichertes Originalangebot", {
+    exact: true,
+  });
+  await expect(image).toHaveAttribute("src", /^blob:/);
+  await expect
+    .poll(() =>
+      image.evaluate((node) => (node as HTMLImageElement).naturalWidth),
+    )
+    .toBe(1400);
+  await expect(provider).toHaveValue("Eigene Vorschaukorrektur");
+  await expect(confirmation).toBeChecked();
+  expect(files).toBe(3);
+  expect(analyses).toBe(0);
+  expect((await (await page.request.get("/api/state")).json()).offers).toEqual(
+    offersBefore,
+  );
+  await dialog
+    .getByRole("button", { name: "Dialog schließen", exact: true })
+    .click();
+});
+
 test("guest responses remain separate for each event and are saved", async ({
   page,
 }) => {

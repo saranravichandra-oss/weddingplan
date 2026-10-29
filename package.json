@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Wedding SS – persönliche Hochzeitsplanung, Alles im Blick",
   "scripts": {
-    "test": "npm run build && npm run test:unit && playwright test",
+    "test": "npm run build && npm run build:cloud && npm run test:unit && playwright test",
     "dev": "node server/index.mjs",
     "build": "tsc --noEmit && vite build --assetsInlineLimit 0",
     "preview": "node server/index.mjs --production",

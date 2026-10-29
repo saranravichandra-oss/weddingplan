@@ -60,9 +60,12 @@ export async function api<T>(
   const response = await request(path, options);
   return response.json().catch(() => ({}));
 }
-export async function apiBlob(path: string): Promise<Blob> {
+export async function apiBlob(
+  path: string,
+  signal?: AbortSignal,
+): Promise<Blob> {
   // A private file may redirect to signed storage. Do not forward CSRF headers.
-  return (await request(path, {}, false)).blob();
+  return (await request(path, { signal }, false)).blob();
 }
 export const json = (value: unknown) => JSON.stringify(value);
 export const getState = () => api<AppState>("/state");

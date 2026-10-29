@@ -1,6 +1,14 @@
 import { useEffect, useState, useRef } from "react";
 import { Check, FileText, Info, UploadSimple } from "@phosphor-icons/react";
-import { api, json, saveRecord, getState, ApiError } from "../api";
+import {
+  api,
+  apiBlob,
+  currentSessionVersion,
+  json,
+  saveRecord,
+  getState,
+  ApiError,
+} from "../api";
 import { analyzeDocument, cloudMode, uploadDocument } from "../documents";
 import { categories, emptyOffer } from "../data";
 import type { Document, Offer, Provider, WeddingEvent } from "../data";
@@ -88,6 +96,9 @@ export default function OfferReview({
   const [selectedQuote, setSelectedQuote] = useState("");
   const [localProgress, setLocalProgress] = useState("");
   const [preview, setPreview] = useState("");
+  const [previewError, setPreviewError] = useState("");
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewRun, setPreviewRun] = useState(0);
   useEffect(() => {
     if (!dirty || submitted.current) return;
     setDraftStored(
@@ -128,26 +139,51 @@ export default function OfferReview({
     return () => window.removeEventListener("beforeunload", warn);
   }, [dirty, draftStored]);
   useEffect(() => {
-    if (!cloudMode || !documentId || !doc?.mime || !doc.uploaded) return;
+    setPreview("");
+    setPreviewError("");
+    setPreviewLoading(false);
+    if (
+      !cloudMode ||
+      !documentId ||
+      !doc ||
+      doc.id !== documentId ||
+      !doc.uploaded ||
+      (doc.mime !== "application/pdf" && !doc.mime.startsWith("image/"))
+    )
+      return;
+    const controller = new AbortController();
+    const startedSession = currentSessionVersion();
     let active = true,
       objectUrl = "";
-    fetch(`/api/documents/${documentId}/file`, { credentials: "same-origin" })
-      .then(async (response) => {
-        if (!response.ok) throw new Error("Original nicht erreichbar.");
-        const data = await response.arrayBuffer();
-        if (!active) return;
-        objectUrl = URL.createObjectURL(new Blob([data], { type: doc.mime }));
+    setPreviewLoading(true);
+    apiBlob(`/documents/${documentId}/file`, controller.signal)
+      .then((file) => {
+        if (!active || startedSession !== currentSessionVersion()) return;
+        if (file.size !== doc.size)
+          throw new Error(
+            "Das Original ist unvollständig angekommen. Bitte die Vorschau erneut laden.",
+          );
+        objectUrl = URL.createObjectURL(new Blob([file], { type: doc.mime }));
         setPreview(objectUrl);
       })
       .catch((error) => {
-        if (active) setError(error.message);
+        if (active && startedSession === currentSessionVersion())
+          setPreviewError(
+            error instanceof TypeError
+              ? "Das Original ist gerade nicht erreichbar. Bitte die Vorschau erneut laden."
+              : error.message,
+          );
+      })
+      .finally(() => {
+        if (active && startedSession === currentSessionVersion())
+          setPreviewLoading(false);
       });
     return () => {
       active = false;
+      controller.abort();
       if (objectUrl) URL.revokeObjectURL(objectUrl);
-      setPreview("");
     };
-  }, [documentId, doc?.mime, doc?.uploaded]);
+  }, [documentId, doc?.id, doc?.mime, doc?.uploaded, doc?.size, previewRun]);
   useEffect(() => {
     if (!documentId) return;
     let active = true;
@@ -687,8 +723,31 @@ export default function OfferReview({
               )}
             </div>
           )}
+          {cloudMode && (previewLoading || previewError) && (
+            <section
+              className="preview-status"
+              role="region"
+              aria-label="Originalvorschau"
+            >
+              {previewLoading ? (
+                <p role="status">Das gespeicherte Original wird geladen …</p>
+              ) : (
+                <>
+                  <ErrorMessage message={previewError} />
+                  <Button
+                    secondary
+                    onClick={() => setPreviewRun((previous) => previous + 1)}
+                  >
+                    Vorschau erneut laden
+                  </Button>
+                  <p>Eure Eingaben und die Auswertung bleiben erhalten.</p>
+                </>
+              )}
+            </section>
+          )}
           {documentId &&
             doc &&
+            (!cloudMode || !!preview) &&
             (doc.mime === "application/pdf" ? (
               <iframe
                 className="file-preview"

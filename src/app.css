@@ -1002,3 +1002,14 @@
     min-height: 40px;
   }
 }
+.preview-status {
+  padding: 16px;
+  margin: 14px 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #f7f5e9;
+}
+.preview-status p {
+  font-size: 13px;
+  line-height: 1.7;
+}
