@@ -1279,3 +1279,20 @@ button {
     color: #3c4b36;
   }
 }
+/* Keep editable text readable on touch devices without restricting page zoom. */
+@media (any-pointer: coarse) {
+  body
+    :is(
+      .form-stack,
+      .table-toolbar,
+      .discover-search,
+      .discover-venue-filters,
+      .inquiry-draft,
+      .event-ideas-heading,
+      .page-selector,
+      .guest-import
+    )
+    :is(input, textarea, select):not([type="checkbox"]):not([type="radio"]) {
+    font-size: 16px;
+  }
+}

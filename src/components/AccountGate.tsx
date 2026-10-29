@@ -109,6 +109,9 @@ export default function AccountGate({
               required
               type="email"
               autoComplete="username"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
               maxLength={200}
             />
           </label>
@@ -140,6 +143,9 @@ export default function AccountGate({
                 value={invitation}
                 onChange={(e) => setInvitation(e.target.value.trim())}
                 autoComplete="off"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
               />
             </label>
           )}
