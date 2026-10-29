@@ -813,7 +813,25 @@ test("researched suggestions stay separate until explicitly remembered and keep 
   await login(page);
   const before = await (await page.request.get("/api/state")).json();
   await section(page, "Entdecken");
-  await expect(page.getByRole("article")).toHaveCount(21);
+  await expect(page.getByRole("article")).toHaveCount(22);
+  await page.getByRole("button", { name: /^Dekoration/ }).click();
+  await expect(page.getByRole("article")).toHaveCount(3);
+  const amani = page.getByRole("article", {
+    name: "Amani Events",
+    exact: true,
+  });
+  await expect(amani).toContainText("keinen aktuellen Berlin-Termin");
+  await expect(amani.getByRole("link", { name: /^Quelle/ })).toHaveAttribute(
+    "href",
+    "https://amani.co.uk/about-us",
+  );
+  await page
+    .getByRole("checkbox", { name: "Berlin & Brandenburg", exact: true })
+    .check();
+  await expect(amani).toHaveCount(0);
+  await page
+    .getByRole("checkbox", { name: "Berlin & Brandenburg", exact: true })
+    .uncheck();
   await page.getByRole("button", { name: /^Outfits & Styling/ }).click();
   await expect(page.getByRole("article")).toHaveCount(1);
   const styling = page.getByRole("article", {

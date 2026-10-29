@@ -234,6 +234,41 @@ export const discoveries: Discovery[] = [
     ],
   },
   {
+    id: "amani",
+    name: "Amani Events",
+    category: "Dekoration",
+    region: "Croydon · London · internationale Einsätze",
+    local: false,
+    headline: "Tamilische Hochzeitsgestaltung mit Deutschland-Erfahrung.",
+    summary:
+      "Die eigene Website nennt tamilische Hochzeiten, individuelle Gestaltung und Koordination. Dekorations- und Veranstaltungsausstattung wird auch zur Miete angeboten.",
+    proof:
+      "Eigene Selbstdarstellung: Arbeit für die tamilische Community seit 2010; frühere Einsätze in Deutschland ausdrücklich genannt.",
+    facts: [
+      ["Leistungen", "Gestaltung, Koordination und Mietausstattung"],
+      ["Standort", "Croydon, London"],
+      ["Preis", "Individuelles Angebot offen"],
+    ],
+    attention:
+      "Frühere Deutschland-Einsätze bestätigen keinen aktuellen Berlin-Termin. Transport, Team, Auf-/Abbau und vollständige Kosten sind offen.",
+    questions: [
+      "Sind Lieferung und Aufbau in Berlin zu unserem Termin möglich?",
+      "Was kosten Ausstattung, Transport, Personal und Abbau insgesamt?",
+      "Welche Entwürfe, Maße, Mietdauern und Ersatzlösungen gehören zum Paket?",
+    ],
+    sources: [
+      {
+        title: "Eigene Vorstellung · Tamil-Community und Deutschland-Einsätze",
+        url: "https://amani.co.uk/about-us",
+      },
+      {
+        title: "Hochzeitsgestaltung und Koordination",
+        url: "https://amani.co.uk/wedding",
+      },
+      { title: "Eigene Mietausstattung", url: "https://amani.co.uk/hire" },
+    ],
+  },
+  {
     id: "sathya",
     name: "Sathya’s Tamilische Event Management",
     category: "Catering",
