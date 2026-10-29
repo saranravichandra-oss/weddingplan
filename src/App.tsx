@@ -11,6 +11,7 @@ import {
   CheckCircle,
   Circle,
   Coins,
+  Compass,
   DownloadSimple,
   FileText,
   Flower,
@@ -50,7 +51,9 @@ import RecordEditor from "./components/RecordEditor";
 import Team from "./components/Team";
 import GuestImport from "./components/GuestImport";
 import Dashboard from "./components/Dashboard";
+import Discover from "./components/Discover";
 import { currentSection, sectionHref } from "./navigation";
+import { clearOfferDrafts } from "./offer-drafts";
 import { attendanceValues, peopleCount } from "../shared/guests.mjs";
 import {
   Badge,
@@ -64,6 +67,7 @@ import {
 const navigation: { label: Section; icon: Icon }[] = [
   { label: "Übersicht", icon: House },
   { label: "Dienstleister", icon: Scales },
+  { label: "Entdecken", icon: Compass },
   { label: "Gäste", icon: Users },
   { label: "Budget", icon: Wallet },
   { label: "Aufgaben", icon: ListChecks },
@@ -103,6 +107,7 @@ export default function App() {
       logout={async () => {
         try {
           await api("/auth/logout", { method: "POST" });
+          clearOfferDrafts(user.id);
           setCsrf("");
           setUser(null);
         } catch {
@@ -149,6 +154,7 @@ function PlanningApp({ user, logout }: { user: User; logout: () => void }) {
     offer?: Offer;
     documentId?: string;
   } | null>(null);
+  const [reviewUnsaved, setReviewUnsaved] = useState(false);
   const [booking, setBooking] = useState<Offer | null>(null);
   const [bookingError, setBookingError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -1241,6 +1247,14 @@ function PlanningApp({ user, logout }: { user: User; logout: () => void }) {
   );
   let content: ReactNode = overview;
   if (section === "Dienstleister") content = comparison;
+  if (section === "Entdecken")
+    content = (
+      <Discover
+        providers={state.providers}
+        events={state.events}
+        onSaved={refresh}
+      />
+    );
   if (section === "Gäste") content = guestsView;
   if (section === "Budget") content = budgetView;
   if (section === "Aufgaben")
@@ -1460,9 +1474,20 @@ function PlanningApp({ user, logout }: { user: User; logout: () => void }) {
         <Dialog
           title="Original und erkannte Angaben prüfen"
           wide
-          onClose={() => setReview(null)}
+          onClose={() => {
+            if (
+              reviewUnsaved &&
+              !window.confirm(
+                "Der Browser konnte diesen Entwurf nicht sichern. Änderungen beim Schließen verwerfen?",
+              )
+            )
+              return;
+            setReview(null);
+          }}
         >
           <OfferReview
+            userId={user.id}
+            onUnsavedChange={setReviewUnsaved}
             offer={review.offer}
             initialDocument={review.documentId}
             providers={state.providers}

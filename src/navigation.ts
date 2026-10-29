@@ -2,6 +2,7 @@ import type { Section } from "./data";
 export const sectionPaths: Record<Section, string> = {
   Übersicht: "uebersicht",
   Dienstleister: "dienstleister",
+  Entdecken: "entdecken",
   Gäste: "gaeste",
   Budget: "budget",
   Aufgaben: "aufgaben",

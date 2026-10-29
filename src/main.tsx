@@ -6,6 +6,7 @@ import "@fontsource-variable/manrope";
 import "./styles.css";
 import "./app.css";
 import "./atelier.css";
+import "./discover.css";
 
 createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

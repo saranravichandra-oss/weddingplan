@@ -1,4 +1,37 @@
 /* Wedding SS Atelier: one calm hierarchy across desktop, mobile and review. */
+.offer-draft-notice {
+  padding: 13px 16px;
+  border: 1px solid #d5dec8;
+  background: #f2f4e9;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  justify-content: space-between;
+  border-radius: 10px;
+  font-size: 12px;
+  line-height: 1.7;
+  margin-bottom: 18px;
+}
+.offer-draft-notice > button {
+  border: 0;
+  background: none;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  font-size: 11px;
+  min-height: 40px;
+  flex-shrink: 0;
+  color: #40583c;
+}
+@media (max-width: 650px) {
+  .offer-draft-notice {
+    flex-direction: column;
+    align-items: start;
+    gap: 5px;
+  }
+  .offer-draft-notice > button {
+    font-size: 12px;
+  }
+}
 :root {
   --accent: #244d3c;
   --accent-dark: #173f2d;

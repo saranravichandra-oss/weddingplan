@@ -1,44 +1,88 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Check, FileText, Info, UploadSimple } from "@phosphor-icons/react";
 import { api, json, saveRecord } from "../api";
 import { analyzeDocument, cloudMode, uploadDocument } from "../documents";
 import { categories, emptyOffer } from "../data";
 import type { Document, Offer, Provider, WeddingEvent } from "../data";
 import { Badge, Button, ErrorMessage } from "./ui";
+import {
+  offerDraftKey,
+  readOfferDraft,
+  writeOfferDraft,
+  clearOfferDrafts,
+  forgetOfferDraft,
+} from "../offer-drafts";
 
 export default function OfferReview({
+  userId,
   offer,
   initialDocument,
   providers,
   events,
   onSaved,
+  onUnsavedChange,
 }: {
+  userId: string;
   offer?: Offer;
   initialDocument?: string;
   providers: Provider[];
   events: WeddingEvent[];
   onSaved: () => void;
+  onUnsavedChange: (unsaved: boolean) => void;
 }) {
+  const draftKey = offerDraftKey(userId, offer?.id || initialDocument || "new");
+  const [cached] = useState(() => readOfferDraft(draftKey));
+  const [dirty, setDirty] = useState(!!cached),
+    [draftStored, setDraftStored] = useState(!!cached);
+  const submitted = useRef(false);
   const [draft, setDraft] = useState<Partial<Offer>>(() => ({
     ...emptyOffer,
     ...offer,
+    ...cached?.draft,
   }));
   const [documentId, setDocumentId] = useState(
-    initialDocument || offer?.documentId || "",
+    cached?.documentId || initialDocument || offer?.documentId || "",
   );
   const [doc, setDoc] = useState<Document | null>(null);
-  const [applied, setApplied] = useState("");
+  const [applied, setApplied] = useState(cached?.applied || "");
   const [pageNumber, setPageNumber] = useState(1);
-  const [mode, setMode] = useState("file");
-  const [text, setText] = useState("");
+  const [mode, setMode] = useState(cached?.mode || "file");
+  const [text, setText] = useState(cached?.text || "");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [corrected, setCorrected] = useState<string[]>(
-    offer?.manualFields || [],
+    cached?.corrected || offer?.manualFields || [],
   );
   const [selectedQuote, setSelectedQuote] = useState("");
   const [localProgress, setLocalProgress] = useState("");
   const [preview, setPreview] = useState("");
+  useEffect(() => {
+    if (!dirty || submitted.current) return;
+    setDraftStored(
+      writeOfferDraft(draftKey, {
+        draft,
+        documentId,
+        corrected,
+        mode,
+        text,
+        applied,
+        savedAt: new Date().toISOString(),
+      }),
+    );
+  }, [draftKey, draft, documentId, corrected, mode, text, applied, dirty]);
+  useEffect(() => {
+    onUnsavedChange(dirty && !draftStored);
+    return () => onUnsavedChange(false);
+  }, [dirty, draftStored, onUnsavedChange]);
+  useEffect(() => {
+    if (!dirty || draftStored) return;
+    const warn = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty, draftStored]);
   useEffect(() => {
     if (!cloudMode || !documentId || !doc?.mime || !doc.uploaded) return;
     let active = true,
@@ -94,6 +138,9 @@ export default function OfferReview({
       setDraft((previous) => ({
         ...emptyOffer,
         ...doc.analysis!.fields,
+        ...Object.fromEntries(
+          corrected.map((key) => [key, previous[key as keyof Offer]]),
+        ),
         id: previous.id,
         version: previous.version,
         providerId: previous.providerId || null,
@@ -102,13 +149,12 @@ export default function OfferReview({
         source: doc.name,
         confirmed: true,
       }));
-      setCorrected([]);
     } else {
       // Reanalysis supplements empty fields; it never overwrites a correction.
       setDraft((previous) => {
         const next = { ...previous };
         for (const [key, value] of Object.entries(doc.analysis!.fields)) {
-          if (offer.manualFields?.includes(key)) continue;
+          if (corrected.includes(key)) continue;
           const existing = next[key as keyof Offer];
           if (
             existing === undefined ||
@@ -125,8 +171,9 @@ export default function OfferReview({
       });
     }
     setApplied(documentId);
-  }, [doc, documentId, applied, offer]);
+  }, [doc, documentId, applied, offer, corrected]);
   function set<K extends keyof Offer>(key: K, value: Offer[K]) {
+    setDirty(true);
     setDraft((previous) => ({ ...previous, [key]: value }));
     setCorrected((previous) =>
       previous.includes(key) ? previous : [...previous, key],
@@ -143,6 +190,9 @@ export default function OfferReview({
     try {
       const response = await uploadDocument(file, setLocalProgress);
       setDoc(null);
+      setDirty(true);
+      setCorrected([]);
+      setApplied("");
       setDocumentId(response.id);
       setPageNumber(1);
       setDraft((previous) => ({
@@ -189,6 +239,7 @@ export default function OfferReview({
     <label key={key}>
       {label}
       <input
+        disabled={busy}
         aria-label={label}
         type={type}
         value={String(draft[key] ?? "")}
@@ -214,6 +265,7 @@ export default function OfferReview({
     <label key={key}>
       {label}
       <textarea
+        disabled={busy}
         aria-label={label}
         value={String(draft[key] || "")}
         rows={3}
@@ -229,6 +281,36 @@ export default function OfferReview({
   );
   return (
     <>
+      {dirty && (
+        <div className="offer-draft-notice" role="status">
+          <span>
+            {draftStored
+              ? cached
+                ? "Entwurf aus diesem Tab wiederhergestellt."
+                : "Entwurf in diesem Tab gesichert."
+              : "Entwurf ist noch ungespeichert; der Browser erlaubt gerade keine lokale Sicherung."}{" "}
+            Noch nicht in den gemeinsamen Vergleich übernommen.
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              submitted.current = true;
+              forgetOfferDraft(draftKey);
+              setDraft({ ...emptyOffer, ...offer });
+              setDoc(null);
+              setDocumentId(initialDocument || offer?.documentId || "");
+              setCorrected(offer?.manualFields || []);
+              setApplied("");
+              setText("");
+              setDirty(false);
+              setDraftStored(false);
+              submitted.current = false;
+            }}
+          >
+            Entwurf verwerfen
+          </button>
+        </div>
+      )}
       <div className="review-notice">
         <Info size={19} />
         <span>
@@ -294,7 +376,10 @@ export default function OfferReview({
                   rows={9}
                   value={text}
                   maxLength={200000}
-                  onChange={(e) => setText(e.target.value)}
+                  onChange={(e) => {
+                    setText(e.target.value);
+                    setDirty(true);
+                  }}
                 />
               </label>
               <Button
@@ -309,6 +394,9 @@ export default function OfferReview({
                       { method: "POST", body: json({ text }) },
                     );
                     setDoc(null);
+                    setDirty(true);
+                    setCorrected([]);
+                    setApplied("");
                     setDocumentId(result.id);
                     setDraft((previous) => ({
                       ...emptyOffer,
@@ -452,6 +540,8 @@ export default function OfferReview({
           </small>
         </section>
         <form
+          inert={busy || undefined}
+          aria-busy={busy}
           className="review-form form-stack"
           onSubmit={async (e) => {
             e.preventDefault();
@@ -465,6 +555,9 @@ export default function OfferReview({
                 manualFields: corrected,
                 confirmed: true,
               });
+              submitted.current = true;
+              if (documentId) clearOfferDrafts(userId, documentId);
+              forgetOfferDraft(draftKey);
               onSaved();
             } catch (error) {
               setError((error as Error).message);
@@ -480,6 +573,7 @@ export default function OfferReview({
           <label>
             Anbieter
             <input
+              disabled={busy}
               aria-label="Anbieter"
               required
               maxLength={200}

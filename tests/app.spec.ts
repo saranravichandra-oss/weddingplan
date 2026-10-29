@@ -57,6 +57,7 @@ test("all planning areas work on desktop and mobile with no runtime errors or ho
     for (const name of [
       "Übersicht",
       "Dienstleister",
+      "Entdecken",
       "Gäste",
       "Budget",
       "Aufgaben",
@@ -76,6 +77,15 @@ test("all planning areas work on desktop and mobile with no runtime errors or ho
           path: testInfo.outputPath(`dashboard-${width}.png`),
           fullPage: true,
         });
+      if (name === "Entdecken") {
+        await expect(
+          page.getByRole("heading", { name: /Hier könnte eure/ }),
+        ).toBeVisible();
+        await page.screenshot({
+          path: testInfo.outputPath(`discover-${width}.png`),
+          fullPage: true,
+        });
+      }
     }
   }
   expect(errors).toEqual([]);
@@ -334,4 +344,170 @@ test("navigation links preserve the current workspace and browser back returns t
       .getByRole("navigation", { name: "Hauptnavigation" })
       .getByRole("link", { name: "Gäste", exact: true }),
   ).toHaveAttribute("aria-current", "page");
+});
+
+test("unsaved offer corrections survive closing and reloading and are never saved as confirmed automatically", async ({
+  page,
+}) => {
+  await login(page);
+  await page
+    .getByRole("button", { name: "Angebot hinzufügen", exact: true })
+    .click();
+  const discard = page.getByRole("button", {
+    name: "Entwurf verwerfen",
+    exact: true,
+  });
+  if (await discard.isVisible()) await discard.click();
+  await page
+    .getByRole("textbox", { name: "Anbieter", exact: true })
+    .fill("Ungespeicherter Browser-Entwurf");
+  await page
+    .getByRole("spinbutton", { name: "Gesamtpreis", exact: true })
+    .fill("4567");
+  await expect(
+    page
+      .getByRole("status")
+      .filter({ hasText: "Entwurf in diesem Tab gesichert" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Dialog schließen" }).click();
+  await page.reload();
+  await page
+    .getByRole("button", { name: "Angebot hinzufügen", exact: true })
+    .click();
+  await expect(
+    page.getByRole("textbox", { name: "Anbieter", exact: true }),
+  ).toHaveValue("Ungespeicherter Browser-Entwurf");
+  await expect(
+    page.getByRole("spinbutton", { name: "Gesamtpreis", exact: true }),
+  ).toHaveValue("4567");
+  const state = await (await page.request.get("/api/state")).json();
+  expect(
+    state.offers.some(
+      (offer: { name: string }) =>
+        offer.name === "Ungespeicherter Browser-Entwurf",
+    ),
+  ).toBeFalsy();
+  await page
+    .getByRole("button", { name: "Entwurf verwerfen", exact: true })
+    .click();
+  await expect(
+    page.getByRole("textbox", { name: "Anbieter", exact: true }),
+  ).toHaveValue("");
+  await page.getByRole("button", { name: "Dialog schließen" }).click();
+});
+
+test("researched suggestions stay separate until explicitly remembered and keep their sources and unresolved terms", async ({
+  page,
+}) => {
+  await login(page);
+  const before = await (await page.request.get("/api/state")).json();
+  await section(page, "Entdecken");
+  await expect(page.getByRole("article")).toHaveCount(14);
+  await page.getByRole("button", { name: /^Location/ }).click();
+  await expect(page.getByRole("article")).toHaveCount(6);
+  await page
+    .getByRole("searchbox", { name: "Vorschläge durchsuchen" })
+    .fill("Meistersaal");
+  const card = page.getByRole("article", { name: "Meistersaal", exact: true });
+  await expect(card).toContainText("220 Tafel / 150 Gala");
+  await expect(card.getByRole("link", { name: /^Quelle/ })).toHaveAttribute(
+    "href",
+    "https://www.meistersaal-berlin.de/raeume/",
+  );
+  await card.getByRole("button", { name: "Details & Fragen" }).click();
+  const dialog = page.getByRole("dialog", { name: "Meistersaal", exact: true });
+  await expect(dialog.getByRole("link", { name: /FAQ/ })).toHaveAttribute(
+    "href",
+    "https://www.meistersaal-berlin.de/faq/fqs-meistersaal/",
+  );
+  await dialog.getByText("Anfragetext vorbereiten", { exact: true }).click();
+  await expect(
+    dialog.getByRole("textbox", { name: "Anfragetext", exact: true }),
+  ).toHaveValue(/der genaue Termin ist noch abzustimmen/);
+  const untouched = await (await page.request.get("/api/state")).json();
+  expect(untouched.providers).toEqual(before.providers);
+  expect(untouched.offers).toEqual(before.offers);
+  await dialog
+    .getByRole("button", { name: "Gemeinsam merken", exact: true })
+    .click();
+  await expect(
+    dialog.getByRole("button", { name: "Gemerkt", exact: true }),
+  ).toBeDisabled();
+  await dialog.getByRole("button", { name: "Dialog schließen" }).click();
+  await page.reload();
+  await page
+    .getByRole("checkbox", { name: "Nur gemerkte", exact: true })
+    .check();
+  await expect(page.getByRole("article")).toHaveCount(1);
+  const after = await (await page.request.get("/api/state")).json();
+  expect(after.providers.length).toBe(before.providers.length + 1);
+  expect(after.costs).toEqual(before.costs);
+  expect(after.offers).toEqual(before.offers);
+  expect(after.events).toEqual(before.events);
+  const remembered = after.providers.find(
+    (value: { name: string }) => value.name === "Meistersaal",
+  );
+  expect(remembered.status).toBe("Gefunden");
+  expect(remembered.notes).toContain("159 € brutto / Person, Basis 150 Gäste");
+  expect(remembered.notes).toContain(
+    "https://www.meistersaal-berlin.de/faq/fqs-meistersaal/",
+  );
+  await section(page, "Dienstleister");
+  await expect(
+    page.locator(".contact-row").filter({ hasText: "Meistersaal" }),
+  ).toContainText("Gefunden");
+});
+
+test("blocked tab storage warns before discarding and does not turn a successful save into an error", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    const set = Storage.prototype.setItem,
+      remove = Storage.prototype.removeItem;
+    Storage.prototype.setItem = function (key, value) {
+      if (key.startsWith("wedding-ss:offer-draft:"))
+        throw new DOMException("Disabled for test", "SecurityError");
+      return set.call(this, key, value);
+    };
+    Storage.prototype.removeItem = function (key) {
+      if (key.startsWith("wedding-ss:offer-draft:"))
+        throw new DOMException("Disabled for test", "SecurityError");
+      return remove.call(this, key);
+    };
+  });
+  await login(page);
+  await page
+    .getByRole("button", { name: "Angebot hinzufügen", exact: true })
+    .click();
+  await page
+    .getByRole("textbox", { name: "Anbieter", exact: true })
+    .fill("Storage-blocked Browser Fixture");
+  await expect(
+    page.getByText(/der Browser erlaubt gerade keine lokale Sicherung/),
+  ).toBeVisible();
+  page.once("dialog", (dialog) => void dialog.dismiss());
+  await page
+    .getByRole("button", { name: "Dialog schließen", exact: true })
+    .click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  page.once("dialog", (dialog) => void dialog.dismiss());
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await page
+    .getByRole("checkbox", { name: /Ich habe Original und Angaben geprüft/ })
+    .check();
+  await page
+    .getByRole("button", {
+      name: "Bestätigt in den Vergleich übernehmen",
+      exact: true,
+    })
+    .click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  const state = await (await page.request.get("/api/state")).json();
+  expect(
+    state.offers.filter(
+      (offer: { name: string }) =>
+        offer.name === "Storage-blocked Browser Fixture",
+    ),
+  ).toHaveLength(1);
 });

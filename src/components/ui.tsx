@@ -99,7 +99,10 @@ export function Dialog({
       ref={ref}
       aria-labelledby={titleId}
       className={`dialog ${wide ? "wide" : ""}`}
-      onCancel={onClose}
+      onCancel={(event) => {
+        event.preventDefault();
+        onClose();
+      }}
     >
       <div className="dialog-heading">
         <h2 id={titleId}>{title}</h2>

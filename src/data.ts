@@ -1,6 +1,7 @@
 export type Section =
   | "Übersicht"
   | "Dienstleister"
+  | "Entdecken"
   | "Gäste"
   | "Budget"
   | "Aufgaben"

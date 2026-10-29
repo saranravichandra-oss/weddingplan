@@ -24,9 +24,9 @@ Die Termine wurden auf die letzten Präzisierungen aktualisiert. Nur bei wesentl
 
 ## Tatsächlicher Ausgangsstand
 
-- Repository: `saranravichandra-oss/weddingplan`, Branch `main`, letzter bekannter Commit `88748ef`. Beim Fortsetzen zuerst `git status` und tatsächlichen HEAD prüfen.
+- Repository: `saranravichandra-oss/weddingplan`, Branch `main`, letzter veröffentlichter UI-Commit `c7ed3a7`. Beim Fortsetzen zuerst `git status` und tatsächlichen HEAD prüfen.
 - Produktiv: https://weddingplan-ace-d963.vercel.app
-- Vercel-Projekt: `prj_CtSXYFdb3iArsv26OmBG6Mrf3JO3`, Team `team_r9YzGG5jmR2allqRgNIcVDWr` (ACE). Kostenlose Hobby-Bereitstellung. Letztes bekanntes READY-Deployment `dpl_1gJajkAjJjvgyhDQCuCYjHdXi1Qt`, Runtime-Code aus Commit `32178e4`; der Folgecommit änderte ausschließlich Testwartezeiten.
+- Vercel-Projekt: `prj_CtSXYFdb3iArsv26OmBG6Mrf3JO3`, Team `team_r9YzGG5jmR2allqRgNIcVDWr` (ACE). Kostenlose Hobby-Bereitstellung. Letztes bekanntes READY-Deployment `dpl_2mhMeMmj8UswY386tziqQnkdZ7WK`, UI-Code aus Commit `c7ed3a7`.
 - Supabase-Free-Projekt: `dprpnsocrmrnkmaqibxs`, Wedding SS, Frankfurt. **Vizha V2 nicht verändern.**
 - Bestehende echte Planung einschließlich Zugang und PDF ist bereits migriert. Einmaliger Migrationsschlüssel ist serverseitig gelöscht. Die lokale `.wedding-data` ist nur noch eine schreibgeschützte Sicherung; der alte localhost-Tab ist nicht mehr der Arbeitsort.
 - Passwörter und Originalsicherheit wurden nach der Migration geprüft. Private Test-/Migrationsunterlagen ausschließlich im ignorierten `.wedding-cloud`.
@@ -49,7 +49,7 @@ Implementierung:
 3. Gäste-/Zusagenzählung, Tabellen und Editor entsprechend ergänzen. Vorläufige Zuordnung als `Vorgesehen` o. ä. abbilden, getrennt von `Eingeladen`, `Zugesagt`, `Abgesagt`. Leere Zuordnungen bleiben offen.
 4. Dubletten in Datei und Bestand anzeigen, standardmäßig überspringen, Namen allein nicht als sicheren Identitätsbeweis behandeln. Keine bestehenden Gäste überschreiben. Wiederholung desselben Imports idempotent behandeln.
 5. Sammelimport serverseitig validieren und transaktional ausführen, damit keine halbe Liste entsteht. Kleine Zahl von Anfragen statt einer Anfrage pro Gast. Auth/CSRF und Versionskonflikte erhalten.
-6. Neue Bibliothek zunächst primär dokumentiert prüfen und exakt pinnen. Bereits recherchiert: `catamphetamine/read-excel-file`, npm-Stand `9.3.13`, Browser/Web-Worker-API seit 7.x mehrfach verändert. Aktuelle Readme/Typen lesen, nicht alte API erfinden. Noch **nicht installiert**.
+6. Neue Bibliothek wurde primär dokumentiert geprüft und exakt gepinnt: `catamphetamine/read-excel-file` `9.3.13`. Aktuelle Browser-API mit Array aus Tabellenblattobjekten implementiert und im Browser getestet.
 7. Nur synthetische Fixtures committen. Die echte Datei zusätzlich in einer ignorierten lokalen Diagnose gegen die Vorschau prüfen. Bei unklarer Bedeutung keine persönlichen Rückmeldungen erfinden. Der Import soll morgens konkret nutzbar sein; keine weitere Rückfrage an den Nutzer.
 
 ### 2. Deutliche UI-/UX-Überarbeitung
@@ -99,10 +99,10 @@ Jede abgeschlossene Änderung passend testen, korrigieren, committen/pushen und 
 - [x] Lokalen Apple-Design-Skill und Skill Scout gelesen; GitHub-Kandidaten und Primärquellen gesichtet.
 - [x] Neue Excel-Datei nur lesend analysiert, private Diagnose ignoriert abgelegt.
 - [x] Excel-Import, Gruppen-/Personenzählung und Vorschau implementiert/getestet/deployt. Commit `fae6df9`, Vercel READY `dpl_BJgWwC8CuRSqYmQECgqV8ZEEU1Dv`, Supabase Edge v3. 20 Node-Tests, bisherige 6 Browserabläufe und zusätzlicher vollständiger XLSX-Importablauf erfolgreich. Echte XLSX nur lesend gegen Parser geprüft. Neue SQL-RPC in einer zurückgerollten Transaktion auf Idempotenz und richtige Personenzahl geprüft; keine Testgäste produktiv hinterlassen. Produktiver Anonymenschutz 401 bestätigt.
-- [ ] Sichtbare UI-/UX-Überarbeitung implementiert/getestet/deployt.
+- [x] Sichtbare Atelier-UI-/UX-Überarbeitung implementiert/getestet/deployt. Commit `c7ed3a7`, READY `dpl_2mhMeMmj8UswY386tziqQnkdZ7WK`. Acht Browserabläufe und danach zwei gezielte Mobil-/Navigationstests erfolgreich, Screenshots visuell geprüft.
 - [ ] Recherchierte Vorauswahl in App nutzbar und belegt.
 - [ ] Pitch mit konkreter Demo vorbereitet.
 
 Zum Fortsetzen zuerst tatsächlichen Git-/Dateistand prüfen; diese Liste nach jedem Arbeitszyklus mit Commit, Tests und Deploymentnachweis aktualisieren.
 
-Aktueller zweiter Arbeitsabschnitt: deutlich neue Atelier-Oberfläche mit eigenem `Dashboard.tsx` und `atelier.css`, dunkler Navigation, neuem Seitenaufbau, größerer Typografie, mobilen Touch-Zielen und URL-/Zurück-Navigation. Lokal 8 Browserabläufe erfolgreich, anschließend zwei gezielte Desktop-/Mobil-/Navigationstests nach einer visuellen Korrektur erneut erfolgreich. Veröffentlichung folgt im laufenden Turn. Nächste konkrete UX-Priorität danach: Angebotsentwürfe vor Verlust schützen und neue recherchierte Vorauswahl in der App zugänglich machen.
+Aktueller dritter Arbeitsabschnitt (noch uncommittet): Angebotsentwürfe tab-/kontogetrennt in `sessionStorage`, Wiederaufnahme nach Schließen/Neuladen, keine automatische Bestätigung. Bei gesperrtem Browser-Speicher Schließ-/Neuladeverlust abfangen; Storage-Fehler dürfen erfolgreiche API-Speicherung nicht in einen Fehler verwandeln. Neue Seite `Entdecken` mit 14 quellenbelegten Vorschlägen in `src/discoveries.ts`, Kategorie-/Regions-/Merkenfiltern, explizitem Kontakt-Speichern, kopierbarem Anfragetext ohne Versand. Build erfolgreich; ein Desktop-/Mobiltest aller Bereiche erfolgreich. Aktuell laufen gezielte Tests für Entwürfe und Recherche-Merken. Ein erster Recherchetest suchte fälschlich die Rolle `textbox` statt `searchbox`; korrigiert. Nach bestandenen Checks committen/pushen/deployen und diesen Abschnitt aktualisieren.
