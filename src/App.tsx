@@ -48,6 +48,8 @@ import AccountGate from "./components/AccountGate";
 import OfferReview from "./components/OfferReview";
 import RecordEditor from "./components/RecordEditor";
 import Team from "./components/Team";
+import GuestImport from "./components/GuestImport";
+import { attendanceValues, peopleCount } from "../shared/guests.mjs";
 import {
   Badge,
   Button,
@@ -155,6 +157,7 @@ function PlanningApp({ user, logout }: { user: User; logout: () => void }) {
   const [guestResponse, setGuestResponse] = useState("Alle Rückmeldungen");
   const [scenarioGuests, setScenarioGuests] = useState(200);
   const [moreOfferDetails, setMoreOfferDetails] = useState(false);
+  const [guestImport, setGuestImport] = useState(false);
   const refresh = useCallback(async () => {
     try {
       const data = await getState();
@@ -879,7 +882,7 @@ function PlanningApp({ user, logout }: { user: User; logout: () => void }) {
           .includes(search.toLowerCase())) &&
       (!guestEvent ||
         guestResponse === "Alle Rückmeldungen" ||
-        (g.attendance[guestEvent] || "Nicht eingeladen") === guestResponse),
+        (g.attendance[guestEvent] || "Nicht angegeben") === guestResponse),
   );
   const guestsView = (
     <>
@@ -887,9 +890,14 @@ function PlanningApp({ user, logout }: { user: User; logout: () => void }) {
         title="Eure Lieblingsmenschen."
         description="Personen und Haushalte zusammenhalten. Für jede Feier separat einladen und Rückmeldungen erfassen."
         action={
-          <Button onClick={() => edit("guests")}>
-            <Plus size={17} /> Gast hinzufügen
-          </Button>
+          <div className="heading-actions">
+            <Button secondary onClick={() => setGuestImport(true)}>
+              <UploadSimple size={17} /> Excel importieren
+            </Button>
+            <Button onClick={() => edit("guests")}>
+              <Plus size={17} /> Gast hinzufügen
+            </Button>
+          </div>
         }
       />
       <div className="guest-summary">
@@ -897,11 +905,11 @@ function PlanningApp({ user, logout }: { user: User; logout: () => void }) {
           <div className="panel" key={event.id}>
             <h3>{event.name}</h3>
             <strong>
-              {
+              {peopleCount(
                 state.guests.filter(
                   (g) => g.attendance[event.id] === "Zugesagt",
-                ).length
-              }{" "}
+                ),
+              )}{" "}
               erfasste Zusagen
             </strong>
             <p>
@@ -909,7 +917,13 @@ function PlanningApp({ user, logout }: { user: User; logout: () => void }) {
               {event.guests === null
                 ? "noch offen"
                 : event.guests + " Personen"}{" "}
-              · separat je Feier
+              ·{" "}
+              {peopleCount(
+                state.guests.filter(
+                  (g) => g.attendance[event.id] === "Vorgesehen",
+                ),
+              )}{" "}
+              vorgesehen · separat je Feier
             </p>
           </div>
         ))}
@@ -945,11 +959,9 @@ function PlanningApp({ user, logout }: { user: User; logout: () => void }) {
               onChange={(e) => setGuestResponse(e.target.value)}
             >
               <option>Alle Rückmeldungen</option>
-              {["Nicht eingeladen", "Eingeladen", "Zugesagt", "Abgesagt"].map(
-                (o) => (
-                  <option key={o}>{o}</option>
-                ),
-              )}
+              {attendanceValues.map((o) => (
+                <option key={o}>{o}</option>
+              ))}
             </select>
           </label>
         </div>
@@ -973,6 +985,10 @@ function PlanningApp({ user, logout }: { user: User; logout: () => void }) {
                 <tr key={guest.id}>
                   <th>
                     <strong>{guest.name}</strong>
+                    <span className="guest-count">
+                      {guest.partySize ?? 1}{" "}
+                      {(guest.partySize ?? 1) === 1 ? "Person" : "Personen"}
+                    </span>
                     <p>
                       {guest.household || "Haushalt offen"} · {guest.type}
                       {guest.table && " · Tisch " + guest.table}
@@ -980,7 +996,7 @@ function PlanningApp({ user, logout }: { user: User; logout: () => void }) {
                   </th>
                   {state.events.map((event) => (
                     <td key={event.id}>
-                      {guest.attendance[event.id] || "Nicht eingeladen"}
+                      {guest.attendance[event.id] || "Nicht angegeben"}
                     </td>
                   ))}
                   <td>
@@ -1535,6 +1551,23 @@ function PlanningApp({ user, logout }: { user: User; logout: () => void }) {
             record={editor.record}
             state={state}
             onSaved={() => void saved()}
+          />
+        </Dialog>
+      )}
+      {guestImport && (
+        <Dialog
+          title="Gästeliste aus Excel übernehmen"
+          wide
+          onClose={() => setGuestImport(false)}
+        >
+          <GuestImport
+            guests={state.guests}
+            events={state.events}
+            onSaved={(message) => {
+              setGuestImport(false);
+              void refresh();
+              setNotice(message);
+            }}
           />
         </Dialog>
       )}

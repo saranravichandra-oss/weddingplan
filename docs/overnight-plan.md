@@ -17,7 +17,7 @@ Die letzte Präzisierung verlangt eine **deutliche, umfangreiche, kaum wiederzue
 
 Es bestehen zwei aktive Heartbeat-Automationen im selben Chat:
 
-- `wedding-ss-ausbau-bis-09-uhr`: ungefähr alle 15 Minuten, endet zum vereinbarten Morgen.
+- `wedding-ss-ausbau-bis-09-uhr`: einminütige Wiederanlaufabsicherung, endet zum vereinbarten Morgen. Kontinuierlich im laufenden Turn arbeiten, nicht zwischen Arbeitsabschnitten 15 Minuten warten.
 - `wedding-ss-pitch-um-09-uhr`: einmalige Übergabe um 09:00 Europe/Berlin.
 
 Die Termine wurden auf die letzten Präzisierungen aktualisiert. Nur bei wesentlichen Änderungen oder tatsächlichen Problemen melden; keine wiederholten Statusmeldungen ohne Fortschritt. Ein laufender Turn kann länger als ein Intervall dauern. Nicht gleichzeitig dieselben Dateien bearbeiten oder bereits erledigte Arbeit neu beginnen. Vor 09:00 keine große unfertige Baustelle eröffnen.

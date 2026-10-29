@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 import type { Page } from "@playwright/test";
 import { offerImage } from "./fixtures.mjs";
+import { guestWorkbook } from "./guest-workbook.mjs";
 const email = "browser-one@example.test";
 const password = "OnlyForBrowserFixtures2027";
 async function login(page: Page, asPartner = false) {
@@ -243,4 +244,73 @@ test("saved budget scenarios distinguish unknown from explicit zero and count ex
   await page.reload();
   await section(page, "Budget");
   await expect(page.locator(".scenario-result strong")).toHaveText(/21.000/);
+});
+
+test("Excel guest import previews households, preserves open responses and skips repeated names", async ({
+  page,
+}) => {
+  await login(page);
+  await section(page, "Gäste");
+  await page
+    .getByRole("button", { name: "Excel importieren", exact: true })
+    .click();
+  const file = {
+    name: "synthetic-guests.xlsx",
+    mimeType:
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    buffer: guestWorkbook([
+      ["Gästeliste", "Anz.", "Prio"],
+      [null, null, "beides", "thaali", "rezeption"],
+      [],
+      ["Browser Import Family", 4, "x"],
+      ["Browser Import Single", 1, null, null, "x"],
+      ["Browser Import Open", 2],
+      ["Browser Import Family", 4, "x"],
+    ]),
+  };
+  await page.getByLabel("Excel-Gästeliste auswählen").setInputFiles(file);
+  const button = page.getByRole("button", {
+    name: "3 Einträge mit 7 Personen importieren",
+    exact: true,
+  });
+  await expect(button).toBeEnabled();
+  const before = await (await page.request.get("/api/state")).json();
+  expect(
+    before.guests.some(
+      (g: { name: string }) => g.name === "Browser Import Family",
+    ),
+  ).toBeFalsy();
+  await expect(page.locator(".import-preview")).toContainText(
+    "Namensgleichheit",
+  );
+  await button.click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  const family = page
+    .getByRole("row")
+    .filter({
+      has: page.getByRole("rowheader", { name: /Browser Import Family/ }),
+    });
+  await expect(family).toContainText("4 Personen");
+  await expect(
+    family.getByRole("cell", { name: "Vorgesehen", exact: true }),
+  ).toHaveCount(2);
+  await expect(
+    family.getByRole("cell", { name: "Nicht angegeben", exact: true }),
+  ).toHaveCount(1);
+  await page.reload();
+  await section(page, "Gäste");
+  await expect(
+    page.getByRole("rowheader", { name: /Browser Import Family/ }),
+  ).toContainText("4 Personen");
+  await page
+    .getByRole("button", { name: "Excel importieren", exact: true })
+    .click();
+  await page.getByLabel("Excel-Gästeliste auswählen").setInputFiles(file);
+  await expect(
+    page.getByRole("button", {
+      name: "0 Einträge mit 0 Personen importieren",
+      exact: true,
+    }),
+  ).toBeDisabled();
+  await page.getByRole("button", { name: "Dialog schließen" }).click();
 });

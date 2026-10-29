@@ -3,6 +3,136 @@
   opacity: 0.6;
   transform: none;
 }
+.heading-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.guest-count {
+  display: inline-block;
+  margin: 8px 0 0;
+  padding: 4px 9px;
+  background: var(--soft);
+  border-radius: 20px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.import-intro {
+  font-size: 14px;
+  line-height: 1.7;
+  max-width: 70ch;
+}
+.import-event-mapping {
+  padding: 20px;
+  background: var(--soft);
+  border-radius: 12px;
+}
+.import-event-mapping h3 {
+  font-size: 16px;
+  margin-bottom: 8px;
+}
+.import-event-mapping p {
+  font-size: 13px;
+  line-height: 1.7;
+  margin-bottom: 18px;
+}
+.import-event-mapping fieldset {
+  border: 1px solid var(--line);
+  padding: 14px;
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+  background: var(--surface);
+  border-radius: 9px;
+}
+.import-event-mapping legend {
+  font-weight: 600;
+  font-size: 13px;
+}
+.import-event-mapping label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.import-event-mapping input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+}
+.import-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.import-summary > div {
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.import-summary strong {
+  font-size: 28px;
+  font-variant-numeric: tabular-nums;
+}
+.import-summary span {
+  display: block;
+  flex-basis: 100%;
+  font-size: 12px;
+  color: var(--muted);
+}
+.import-preview {
+  max-height: 430px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+}
+.import-preview caption {
+  text-align: left;
+  padding: 14px;
+  font-size: 13px;
+  font-weight: 500;
+}
+.import-preview th,
+.import-preview td {
+  font-size: 12px;
+  min-width: 100px;
+  vertical-align: top;
+}
+.import-preview small {
+  display: block;
+  font-size: 10px;
+  font-weight: 400;
+  margin-top: 6px;
+}
+.import-preview td:last-child {
+  min-width: 220px;
+}
+.import-preview input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--accent);
+}
+@media (max-width: 600px) {
+  .import-summary {
+    grid-template-columns: 1fr;
+  }
+  .heading-actions {
+    width: 100%;
+  }
+  .heading-actions > .button {
+    flex: 1;
+  }
+  .import-event-mapping fieldset {
+    flex-direction: column;
+  }
+}
 .compare-details-toggle {
   padding: 18px 23px;
   font-size: 12px;

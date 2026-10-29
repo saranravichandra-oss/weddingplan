@@ -86,6 +86,8 @@ export type Task = Stored & {
   event: string;
 };
 export type Guest = Stored & {
+  partySize?: number;
+  importBatch?: string;
   name: string;
   household: string;
   type: string;

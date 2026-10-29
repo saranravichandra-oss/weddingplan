@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { attendanceValues } from "../shared/guests.mjs";
 const text = z.string().trim().max(4000);
 const short = z.string().trim().max(200);
 const name = short.min(1);
@@ -100,14 +101,15 @@ export const schemas = {
   guests: z.object({
     name,
     household: short.default(""),
-    type: z.enum(["Erwachsen", "Kind", "Begleitung"]).default("Erwachsen"),
+    type: z
+      .enum(["Erwachsen", "Kind", "Begleitung", "Gruppe", "Nicht angegeben"])
+      .default("Erwachsen"),
+    partySize: z.number().int().min(1).max(1000).default(1),
+    importBatch: z.string().uuid().optional(),
     dietary: text.default(""),
     notes: text.default(""),
     attendance: z
-      .record(
-        z.string().max(200),
-        z.enum(["Nicht eingeladen", "Eingeladen", "Zugesagt", "Abgesagt"]),
-      )
+      .record(z.string().max(200), z.enum(attendanceValues))
       .default({}),
     table: short.default(""),
   }),

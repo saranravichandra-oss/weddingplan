@@ -9,6 +9,7 @@ import { Buffer } from "node:buffer";
 import { z } from "zod";
 import { accountSchema, loginSchema, schemas } from "../server/validation.mjs";
 import { extractOffer } from "../server/extract.mjs";
+import { guestImportSchema } from "../server/guest-import.mjs";
 
 const kinds = Object.keys(schemas),
   bucketName = "wedding-documents";
@@ -452,6 +453,27 @@ export function createCloudHandler(db) {
       if (path === "/invitations" && method === "DELETE") {
         await query(table("invitations").delete().neq("token", ""));
         return response({ ok: true });
+      }
+      if (path === "/guests/import" && method === "POST") {
+        const input = guestImportSchema.parse(data);
+        const ids = new Set((await list("events")).map((event) => event.id));
+        if (
+          input.rows.some((row) =>
+            Object.keys(row.guest.attendance).some((id) => !ids.has(id)),
+          )
+        )
+          fail(
+            400,
+            "Die Veranstaltungszuordnung ist nicht mehr aktuell. Bitte die Vorschau neu laden.",
+          );
+        const result = await query(
+          db.rpc("wedding_import_guests", {
+            p_batch: input.batchId,
+            p_rows: input.rows,
+            p_user: user.id,
+          }),
+        );
+        return response(result, 201);
       }
       const entity = path.match(/^\/records\/([a-z]+)(?:\/([^/]+))?$/);
       if (entity && ["POST", "PUT", "DELETE"].includes(method)) {

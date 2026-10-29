@@ -26,6 +26,8 @@ import { z } from "zod";
 import { openStore, kinds } from "./store.mjs";
 import { schemas, accountSchema, loginSchema } from "./validation.mjs";
 import { extractOffer } from "./extract.mjs";
+import { guestImportSchema } from "./guest-import.mjs";
+import { guestKey } from "../shared/guests.mjs";
 
 const production = process.argv.includes("--production");
 const directory = resolve(process.env.WEDDING_DATA_DIR || ".wedding-data");
@@ -365,6 +367,55 @@ app.get("/api/state", session, (req, res) =>
     paidApiCalls: false,
   }),
 );
+app.post("/api/guests/import", session, (req, res) => {
+  const input = guestImportSchema.parse(req.body);
+  const eventIds = new Set(store.list("events").map((event) => event.id));
+  if (
+    input.rows.some((row) =>
+      Object.keys(row.guest.attendance).some((id) => !eventIds.has(id)),
+    )
+  )
+    return res
+      .status(400)
+      .json({
+        error:
+          "Die Veranstaltungszuordnung ist nicht mehr aktuell. Bitte die Vorschau neu laden.",
+      });
+  let created = 0,
+    skipped = 0,
+    people = 0;
+  db.exec("BEGIN IMMEDIATE");
+  try {
+    const names = new Set(
+      store.list("guests").map((guest) => guestKey(guest.name)),
+    );
+    for (const row of input.rows) {
+      const id = `guest-import-${input.batchId}-${row.sourceRow}`;
+      if (
+        store.get("guests", id) ||
+        (!row.allowDuplicate && names.has(guestKey(row.guest.name)))
+      ) {
+        skipped++;
+        continue;
+      }
+      store.create(
+        "guests",
+        { ...row.guest, importBatch: input.batchId },
+        req.user.id,
+        id,
+      );
+      names.add(guestKey(row.guest.name));
+      created++;
+      people += row.guest.partySize;
+    }
+    store.audit(req.user.id, "guests.imported", input.batchId);
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
+  res.status(201).json({ created, skipped, people });
+});
 function clean(kind, data) {
   const schema = schemas[kind];
   if (!schema) throw new Error("UnknownKind");

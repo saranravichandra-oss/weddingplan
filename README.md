@@ -54,6 +54,14 @@ Die ausgelieferte HTTP-Konfiguration ist für euer vertrauenswürdiges privates 
 - Unterlagen erneut öffnen oder herunterladen; Planungsdaten einschließlich Auswertungen als JSON exportieren.
 - Zwei private Zugänge, Passwortänderung, Abmeldung, Einladungswiderruf und Konflikterkennung bei gleichzeitiger Bearbeitung.
 
+## Excel-Gästelisten
+
+Unter **Gäste → Excel importieren** lassen sich `.xlsx`-Dateien bis 2 MB einlesen. Die Datei wird im Browser gelesen; es wird keine Arbeitsmappe an einen Auswertungsdienst übertragen. Tabellenblatt, Namens-/Anzahlspalten und Veranstaltungen sind vor dem Import prüfbar. Bis zu 500 Einträge können gemeinsam gespeichert werden.
+
+Familien können als Gruppe mit ihrer Personenzahl übernommen werden. Es werden keine erfundenen Einzelpersonen angelegt. „x“ wird als **Vorgesehen** behandelt, ausdrücklich genannte Zusagen/Absagen getrennt je zugeordneter Veranstaltung. Fehlende Zuordnungen bleiben **Nicht angegeben**. Namensgleichheiten werden angezeigt und standardmäßig ausgelassen; ein gleicher Name ist kein sicherer Identitätsnachweis. Bestehende Einträge werden nicht überschrieben. Der Sammelimport wird transaktional gespeichert und kann nach einer unterbrochenen Antwort ohne doppelte Einträge wiederholt werden.
+
+Die Szenario- und Budgetannahmen ändern sich durch einen Gästeimport nicht automatisch. Bei einer Gruppenrückmeldung zählt die angegebene Personenzahl für die gesamte Gruppe; bei unterschiedlichen Rückmeldungen die Gruppe entsprechend in Einträge aufteilen.
+
 ## Angebotsauswertung ohne API-Kosten
 
 Unterstützt: **PDF, PNG, JPG, WebP und UTF-8-TXT**, alternativ eingefügter Text. Maximal 15 MB pro Datei, 20 PDF-Seiten und 20 Megapixel je gerenderter Seite/Bild. Der lokale Dokumentenspeicher ist auf 2 GB begrenzt. Word- und E-Mail-Dateien bitte als PDF exportieren oder ihren Text einfügen. Ein aus einer E-Mail heruntergeladenes PDF/Bild kann direkt hochgeladen werden.

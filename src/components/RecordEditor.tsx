@@ -4,6 +4,7 @@ import { saveRecord } from "../api";
 import { categories } from "../data";
 import type { AppState, Kind, Stored } from "../data";
 import { Button, ErrorMessage } from "./ui";
+import { attendanceValues } from "../../shared/guests.mjs";
 export default function RecordEditor({
   kind,
   record,
@@ -94,6 +95,7 @@ export default function RecordEditor({
       data.guests = numeric("guests") ?? 200;
     }
     if (kind === "guests") {
+      data.partySize = numeric("partySize") ?? 1;
       data.attendance = Object.fromEntries(
         state.events.map((event) => [
           event.id,
@@ -214,10 +216,26 @@ export default function RecordEditor({
         <>
           {field("name", "Name", "text", true)}
           {field("household", "Haushalt")}
+          <label>
+            Anzahl Personen
+            <input
+              name="partySize"
+              type="number"
+              min={1}
+              max={1000}
+              step={1}
+              required
+              defaultValue={value("partySize", 1)}
+            />
+            <small>
+              Eine Familie kann als Gruppe erfasst werden. Die Anzahl zählt für
+              die jeweilige Rückmeldung der ganzen Gruppe.
+            </small>
+          </label>
           {select(
             "type",
             "Person",
-            ["Erwachsen", "Kind", "Begleitung"],
+            ["Erwachsen", "Kind", "Begleitung", "Gruppe", "Nicht angegeben"],
             "Erwachsen",
           )}
           {state.events.map((event) => (
@@ -230,11 +248,9 @@ export default function RecordEditor({
                   "Nicht eingeladen"
                 }
               >
-                {["Nicht eingeladen", "Eingeladen", "Zugesagt", "Abgesagt"].map(
-                  (option) => (
-                    <option key={option}>{option}</option>
-                  ),
-                )}
+                {attendanceValues.map((option) => (
+                  <option key={option}>{option}</option>
+                ))}
               </select>
             </label>
           ))}

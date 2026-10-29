@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { mkdtempSync, rmSync, readFileSync, readdirSync } from "node:fs";
 import { resolve, join } from "node:path";
 import { once } from "node:events";
@@ -200,6 +201,96 @@ test(
             "Eingeladen",
           );
           assert.equal(result.value.attendance[state.events[2].id], "Zugesagt");
+        },
+      );
+      await t.test(
+        "guest import is atomic, idempotent and counts families without changing existing guests",
+        async () => {
+          const before = (await request("/state", { auth: t.owner })).value;
+          const attendance = {
+            [before.events[1].id]: "Vorgesehen",
+            [before.events[2].id]: "Nicht angegeben",
+          };
+          const input = {
+            batchId: randomUUID(),
+            rows: [
+              {
+                sourceRow: 4,
+                guest: {
+                  name: "Import Family",
+                  partySize: 5,
+                  type: "Gruppe",
+                  attendance,
+                },
+              },
+              {
+                sourceRow: 5,
+                guest: { name: "Testgast", partySize: 3, attendance },
+              },
+            ],
+          };
+          assert.equal(
+            (await request("/guests/import", { method: "POST", data: input }))
+              .response.status,
+            401,
+          );
+          assert.equal(
+            (
+              await request("/guests/import", {
+                method: "POST",
+                auth: { ...t.owner, csrf: "wrong" },
+                data: input,
+              })
+            ).response.status,
+            403,
+          );
+          const invalid = {
+            ...input,
+            rows: [
+              input.rows[0],
+              { sourceRow: 8, guest: { name: "Invalid family", partySize: 0 } },
+            ],
+          };
+          assert.equal(
+            (
+              await request("/guests/import", {
+                method: "POST",
+                auth: t.owner,
+                data: invalid,
+              })
+            ).response.status,
+            400,
+          );
+          assert.equal(
+            (await request("/state", { auth: t.owner })).value.guests.length,
+            before.guests.length,
+          );
+          const imported = await request("/guests/import", {
+            method: "POST",
+            auth: t.owner,
+            data: input,
+          });
+          assert.equal(imported.response.status, 201);
+          assert.deepEqual(imported.value, {
+            created: 1,
+            skipped: 1,
+            people: 5,
+          });
+          const retry = await request("/guests/import", {
+            method: "POST",
+            auth: t.owner,
+            data: input,
+          });
+          assert.deepEqual(retry.value, { created: 0, skipped: 2, people: 0 });
+          const saved = (
+            await request("/state", { auth: t.partner })
+          ).value.guests.find((guest) => guest.name === "Import Family");
+          assert.equal(saved.partySize, 5);
+          assert.equal(saved.attendance[before.events[1].id], "Vorgesehen");
+          assert.equal(
+            saved.attendance[before.events[2].id],
+            "Nicht angegeben",
+          );
         },
       );
       await t.test(
