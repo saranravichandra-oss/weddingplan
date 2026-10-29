@@ -172,6 +172,29 @@ function PlanningApp({
   const [connectionError, setConnectionError] = useState("");
   const refreshRun = useRef(0);
   const [section, setSection] = useState<Section>(currentSection);
+  const mainRef = useRef<HTMLElement>(null);
+  const previousSection = useRef(section);
+  useEffect(() => {
+    const previousTitle = document.title;
+    document.title = `${section === "Dienstleister" ? "Angebote & Dienstleister" : section} · Wedding SS`;
+    let frame = 0;
+    if (previousSection.current !== section) {
+      frame = requestAnimationFrame(() => {
+        if (document.querySelector("dialog[open]")) return;
+        const target = mainRef.current?.querySelector<HTMLElement>("h1");
+        if (target) {
+          target.tabIndex = -1;
+          target.focus({ preventScroll: true });
+          window.scrollTo({ top: 0 });
+        }
+      });
+    }
+    previousSection.current = section;
+    return () => {
+      cancelAnimationFrame(frame);
+      document.title = previousTitle;
+    };
+  }, [section]);
   const [notice, setNoticeState] = useState<{
     text: string;
     tone: "success" | "error" | "info";
@@ -1580,7 +1603,7 @@ function PlanningApp({
               </button>
             )}
           </div>
-          <main id="main" className="main-content">
+          <main id="main" className="main-content" tabIndex={-1} ref={mainRef}>
             {state?.cloudMove && (
               <div className="session-notice" role="status">
                 {state.cloudMove.complete ? (

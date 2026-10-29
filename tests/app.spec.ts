@@ -221,6 +221,74 @@ test("mobile navigation exposes every area through More and tablet icons keep th
   await expect(providerLink.locator(".mobile-nav-name")).toBeHidden();
 });
 
+test("keyboard navigation starts at the selected content and background refresh keeps input focus", async ({
+  page,
+}, testInfo) => {
+  await login(page);
+  await page.keyboard.press("Tab");
+  const skip = page.getByRole("link", { name: "Zum Inhalt", exact: true });
+  await skip.focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("main")).toBeFocused();
+  const nav = page.getByRole("navigation", { name: "Hauptnavigation" });
+  await nav
+    .getByRole("link", { name: "Angebote und Dienstleister", exact: true })
+    .focus();
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(/bereich=dienstleister/);
+  await expect(
+    page.getByRole("main").getByRole("heading", { level: 1 }),
+  ).toBeFocused();
+  await expect(page).toHaveTitle("Angebote & Dienstleister · Wedding SS");
+  const search = page.getByRole("searchbox", {
+    name: "Anbieter suchen",
+    exact: true,
+  });
+  await search.fill("Fokus bleibt");
+  await page.waitForResponse(
+    (response) =>
+      response.url().endsWith("/api/state") &&
+      response.request().method() === "GET",
+  );
+  await expect(search).toBeFocused();
+  await expect(search).toHaveValue("Fokus bleibt");
+  await page.setViewportSize({ width: 320, height: 900 });
+  const more = page.getByRole("button", {
+    name: "Mehr: alle Planungsbereiche öffnen",
+    exact: true,
+  });
+  await more.focus();
+  await page.keyboard.press("Enter");
+  const menu = page.getByRole("dialog", {
+    name: "Alle Planungsbereiche",
+    exact: true,
+  });
+  await menu.getByRole("link", { name: "Dokumente", exact: true }).focus();
+  await page.keyboard.press("Enter");
+  await expect(menu).toHaveCount(0);
+  await expect(
+    page.getByRole("main").getByRole("heading", { level: 1 }),
+  ).toBeFocused();
+  await expect(page).toHaveTitle("Dokumente · Wedding SS");
+  await page.screenshot({
+    path: testInfo.outputPath("keyboard-content-320.png"),
+  });
+  await page.keyboard.press("Tab");
+  await expect(
+    page.getByRole("button", { name: "Angebot hinzufügen", exact: true }),
+  ).toBeFocused();
+  await more.focus();
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("Escape");
+  await expect(more).toBeFocused();
+  await page.goBack();
+  await expect(page).toHaveURL(/bereich=dienstleister/);
+  await expect(
+    page.getByRole("main").getByRole("heading", { level: 1 }),
+  ).toBeFocused();
+  await expect(page).toHaveTitle("Angebote & Dienstleister · Wedding SS");
+});
+
 test("text extraction proposes values with source evidence; confirmed unknown price survives reload", async ({
   page,
 }) => {

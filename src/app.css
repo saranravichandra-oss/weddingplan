@@ -1013,3 +1013,9 @@
   font-size: 13px;
   line-height: 1.7;
 }
+
+.main-content:focus-visible,
+.main-content h1[tabindex="-1"]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 5px;
+}
