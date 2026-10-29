@@ -258,6 +258,36 @@ export const discoveries: Discovery[] = [
     ],
   },
   {
+    id: "nandys",
+    name: "Nandy’s Catering",
+    category: "Catering",
+    region: "Hilden · NRW",
+    local: false,
+    headline: "Tamilische Menüs mit Service und Ausstattung.",
+    summary:
+      "Der Caterer nennt tamilische Gerichte und Hochzeitscatering ausdrücklich. Es gibt ein vegetarisches Beispielmenü und Catering-Equipment; Umfang und Berlin-Einsatz bleiben individuell offen.",
+    proof:
+      "Eigene Cateringseite mit tamilischer Küche und Verbindung zum eigenen Restaurant Nandy’s Tamil Foods.",
+    facts: [
+      ["Küche", "Tamilisch und international · vegetarische Menüoption"],
+      ["Leistungen", "Essen, Getränke, Service und Ausstattung genannt"],
+      ["Preis", "Individuelles Angebot offen"],
+    ],
+    attention:
+      "Sitz in Hilden. Lieferung nach Berlin, Kapazität für 180–220 Gäste, Reisekosten und enthaltenes Personal sind nicht bestätigt. Beispielmenüs sind keine fest gebuchten Pakete.",
+    questions: [
+      "Ist ein tamilisches Menü für 180–220 Gäste in Berlin möglich?",
+      "Was umfasst der Endpreis einschließlich Anfahrt, Personal, Geschirr und Warmhaltung?",
+      "Welche vegetarischen Varianten und getrennten Zubereitungen sind möglich?",
+    ],
+    sources: [
+      {
+        title: "Eigene Cateringseite · Menüs und Leistungen",
+        url: "https://nandys.de/",
+      },
+    ],
+  },
+  {
     id: "meistersaal",
     catering: "frei",
     dinnerSeats: 220,
@@ -600,6 +630,46 @@ export const discoveries: Discovery[] = [
       {
         title: "Mietküche · Ausstattung und öffentliche Preise",
         url: "https://www.villa-schuetzenhof.de/mehr-infos/mietkueche-villa-kueche/",
+      },
+    ],
+  },
+  {
+    id: "stadthalle-falkensee",
+    name: "Stadthalle Falkensee",
+    category: "Location",
+    region: "Brandenburg · Falkensee",
+    local: true,
+    catering: "frei",
+    dinnerSeats: 748,
+    headline: "Viel Platz und freie Catererwahl.",
+    summary:
+      "Ein eigener Bestuhlungsplan vom Juli 2025 zeigt maximal 748 Sitzplätze an Tischen in der gesamten Veranstaltungshalle. Freie Catererwahl und ein zubuchbarer Aufwärm-Cateringbereich sind dokumentiert.",
+    proof:
+      "Eigene Bestuhlungspläne und Mietkonditionen; Stadt-FAQ nennt die Halle auch für private Feiern.",
+    facts: [
+      ["Bestuhlung", "Max. 748 Tischplätze · Plan 01.07.2025"],
+      ["Catering", "Freie Wahl · Aufwärmbereich zubuchbar"],
+      ["Preis", "Aktuelles Angebot offen, Preistabelle Stand 2017"],
+    ],
+    attention:
+      "Die volle Halle ist deutlich größer als eure Feier. Geeignete Teilfläche und Raumwirkung klären. Die veröffentlichte Preistabelle trägt Stand Mai 2017 und wird hier nicht als aktueller Preis übernommen. Betreuung, Reinigung und Möbelaufbau werden separat berechnet.",
+    questions: [
+      "Welche Teilfläche mit Tanzfläche und Buffet passt zu 180–220 Gästen?",
+      "Was kosten aktuell Miete, Betreuung, Reinigung, Möbelaufbau und Technik zusammen?",
+      "Welche Zeiten, genehmigten Tischpläne und Aufwärmmöglichkeiten gelten für eine private Hochzeit?",
+    ],
+    sources: [
+      {
+        title: "Eigene Bestuhlungsseite · Tischplan von 2025",
+        url: "https://stadthalle-falkensee.de/veranstalter/bestuhlung",
+      },
+      {
+        title: "Mietkonditionen · Cateringfreiheit und Preisstand",
+        url: "https://stadthalle-falkensee.de/veranstalter/mietkonditionen/",
+      },
+      {
+        title: "Stadt-FAQ · Räume für private Feiern",
+        url: "https://www.falkensee.de/seite/552977/faq-h%C3%A4ufig-gestellte-fragen.html",
       },
     ],
   },

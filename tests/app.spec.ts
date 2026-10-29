@@ -484,24 +484,46 @@ test("unsaved offer corrections survive closing and reloading and are never save
 
 test("researched suggestions stay separate until explicitly remembered and keep their sources and unresolved terms", async ({
   page,
-}) => {
+}, testInfo) => {
   await login(page);
   const before = await (await page.request.get("/api/state")).json();
   await section(page, "Entdecken");
-  await expect(page.getByRole("article")).toHaveCount(18);
+  await expect(page.getByRole("article")).toHaveCount(20);
+  await page.getByRole("button", { name: /^Catering/ }).click();
+  await expect(page.getByRole("article")).toHaveCount(5);
+  await expect(
+    page.getByRole("article", { name: "Nandy’s Catering", exact: true }),
+  ).toContainText("nicht bestätigt");
+  await page
+    .getByRole("checkbox", { name: "Berlin & Brandenburg", exact: true })
+    .check();
+  await expect(
+    page.getByRole("article", { name: "Nandy’s Catering", exact: true }),
+  ).toHaveCount(0);
+  await page
+    .getByRole("checkbox", { name: "Berlin & Brandenburg", exact: true })
+    .uncheck();
   await page.getByRole("button", { name: /^Location/ }).click();
-  await expect(page.getByRole("article")).toHaveCount(10);
+  await expect(page.getByRole("article")).toHaveCount(11);
   await page
     .getByRole("checkbox", { name: "Eigener Caterer laut Quelle möglich" })
     .check();
   await page.getByLabel("Sitzplätze laut Quelle").selectOption("220");
-  await expect(page.getByRole("article")).toHaveCount(3);
+  await expect(page.getByRole("article")).toHaveCount(4);
+  await expect(
+    page.getByRole("article", { name: "Stadthalle Falkensee", exact: true }),
+  ).toContainText("Stand 2017");
   await expect(
     page.getByRole("article", { name: "Alte Turnhalle Berlin", exact: true }),
   ).toContainText("keine Küchennutzung");
   await expect(
     page.getByRole("article", { name: "Villa Schützenhof", exact: true }),
   ).toHaveCount(0);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page
+    .getByRole("article", { name: "Alte Turnhalle Berlin", exact: true })
+    .screenshot({ path: testInfo.outputPath("turnhalle-mobile.png") });
+  await page.setViewportSize({ width: 1440, height: 950 });
   await expect(
     page.getByRole("article", { name: "BOLLE Festsäle", exact: true }),
   ).toBeVisible();
