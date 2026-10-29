@@ -488,14 +488,20 @@ test("researched suggestions stay separate until explicitly remembered and keep 
   await login(page);
   const before = await (await page.request.get("/api/state")).json();
   await section(page, "Entdecken");
-  await expect(page.getByRole("article")).toHaveCount(16);
+  await expect(page.getByRole("article")).toHaveCount(18);
   await page.getByRole("button", { name: /^Location/ }).click();
-  await expect(page.getByRole("article")).toHaveCount(8);
+  await expect(page.getByRole("article")).toHaveCount(10);
   await page
     .getByRole("checkbox", { name: "Eigener Caterer laut Quelle möglich" })
     .check();
   await page.getByLabel("Sitzplätze laut Quelle").selectOption("220");
-  await expect(page.getByRole("article")).toHaveCount(2);
+  await expect(page.getByRole("article")).toHaveCount(3);
+  await expect(
+    page.getByRole("article", { name: "Alte Turnhalle Berlin", exact: true }),
+  ).toContainText("keine Küchennutzung");
+  await expect(
+    page.getByRole("article", { name: "Villa Schützenhof", exact: true }),
+  ).toHaveCount(0);
   await expect(
     page.getByRole("article", { name: "BOLLE Festsäle", exact: true }),
   ).toBeVisible();

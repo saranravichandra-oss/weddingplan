@@ -531,4 +531,76 @@ export const discoveries: Discovery[] = [
       },
     ],
   },
+  {
+    id: "alte-turnhalle",
+    name: "Alte Turnhalle Berlin",
+    category: "Location",
+    region: "Berlin · Friedrichshain",
+    local: true,
+    catering: "frei",
+    dinnerSeats: 250,
+    headline: "Saal und Sommergarten mit eigener Catereroption.",
+    summary:
+      "Die eigene Hochzeitsseite nennt bis zu 250 Plätze an Tafeln im großen Saal. Externes Speisencatering ist gegen Gastroauslösung möglich; Getränke bleiben beim Haus.",
+    proof: "Eigene Hochzeitsseite mit Bestuhlungszahlen und Catering-FAQ.",
+    facts: [
+      ["Großer Saal", "Max. 250 an Tafeln · knapp 280 m²"],
+      ["Catering", "Extern gegen Gastroauslösung, keine Küchennutzung"],
+      ["Feierzeit", "Bis 04:00; Wochenende frühestens ab 16:00"],
+      ["Preis", "Miete und Gastroauslösung offen"],
+    ],
+    attention:
+      "Das Haus bezeichnet 80–150 Gäste als ideal. Für 180–220 braucht ihr einen konkreten Sitzplan mit Buffet und Tanzfläche. Speisen müssen verzehrfertig angeliefert werden; ein tamilischer Caterer muss dies leisten können. Am Wochenende kein Aufbau am Vortag.",
+    questions: [
+      "Welcher Plan funktioniert für 180–220 Gäste an Tafeln mit Tanzfläche und Buffet?",
+      "Was kosten Gastroauslösung, Getränke, Reinigung und Verlängerung insgesamt?",
+      "Wie sind verzehrfertige Anlieferung, Warmhaltung und Aufbau ohne Küchennutzung möglich?",
+    ],
+    sources: [
+      {
+        title: "Hochzeiten · Räume, Zeiten & Catering-FAQ",
+        url: "https://www.alte-turnhalle-berlin.de/hochzeit",
+      },
+    ],
+  },
+  {
+    id: "villa-schuetzenhof",
+    name: "Villa Schützenhof",
+    category: "Location",
+    region: "Berlin · Spandau",
+    local: true,
+    catering: "frei",
+    headline: "Eigener Caterer und professionelle Küche.",
+    summary:
+      "Die Villa bestätigt freie Catererwahl und eine mietbare Produktionsküche. Der Königssaal liegt im ersten Obergeschoss; eine konkrete Dinnerbestuhlung für eure Gästezahl ist noch zu bestätigen.",
+    proof:
+      "Eigene Location-, Raum- und Mietküchenseiten bestätigen Catererwahl und Ausstattung.",
+    facts: [
+      ["Königssaal", "255 m² im Obergeschoss · Bühne vorhanden"],
+      ["Eigener Caterer", "Laut Website möglich, Küche mietbar"],
+      ["Küchenpreis", "950 € zzgl. MwSt. / 10 h exklusive Nutzung"],
+      ["Gesamtpreis", "Raummiete, Personal und Feierangebot offen"],
+    ],
+    attention:
+      "Der Küchenpreis ist ein einzelner veröffentlichter Mietbaustein, kein Hochzeitspaket. Die eigene Raumseite nennt keine genaue Dinnerplatzanzahl; daher nicht im Mindest-Sitzplatzfilter enthalten. Treppenlift, Buffetwege und Raumnutzung für 180–220 Gäste konkret klären.",
+    questions: [
+      "Wie viele Gäste sitzen im Königssaal gemeinsam mit Tanzfläche und Buffet?",
+      "Welche Küche und Nebenkosten sind im individuellen Feierangebot enthalten?",
+      "Wie funktionieren Anlieferung, Treppenlift, Auf-/Abbau und Veranstaltungsende?",
+    ],
+    sources: [
+      {
+        title: "Eigene Locationseite · kein verbindlicher Hauscaterer",
+        url: "https://www.villa-schuetzenhof.de/mehr-infos/location/",
+      },
+      {
+        title: "Raumübersicht · Königssaal und Zugang",
+        url: "https://www.villa-schuetzenhof.de/mehr-infos/raumuebersicht/",
+      },
+      {
+        title: "Mietküche · Ausstattung und öffentliche Preise",
+        url: "https://www.villa-schuetzenhof.de/mehr-infos/mietkueche-villa-kueche/",
+      },
+    ],
+  },
 ];
