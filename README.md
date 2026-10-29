@@ -18,6 +18,8 @@ Die Cloud-Fassung verwendet eine stateless Vercel-Funktion als Proxy, eine Supab
 
 Anmeldung mit dem bestehenden Konto, Einladung des zweiten Zugangs unter **Gemeinsam**. Beide können über HTTPS auch aus verschiedenen Netzwerken zugreifen. Änderungen werden bei geöffneter Seite ungefähr alle 15 Sekunden geladen; gleichzeitige Änderungen desselben Eintrags werden erkannt. Automatische E-Mails werden nicht versendet.
 
+Die Planung wird außerdem beim Zurückwechseln in den Tab aktualisiert. Verspätete Antworten eines früheren Abgleichs ersetzen weder eine frisch geladene Fassung noch einen aktuelleren Verbindungshinweis. Bei einem Fehler bleiben die bereits angezeigten Daten erhalten; „Erneut verbinden“ lädt den gemeinsamen Stand wieder.
+
 Die Bereitstellung benötigt Vercel **Hobby** und Supabase **Free**, ohne Upgrade oder kostenpflichtige Zusatzdienste. Die App begrenzt Dokumente auf 750 MB insgesamt und 15 MB pro Datei. Anbieterlimits gelten zusätzlich; kostenlose Projekte können bei Inaktivität pausieren oder beim Erreichen von Freigrenzen eingeschränkt werden. Es wird keine unbegrenzte Verfügbarkeit zugesichert. Exporte und Originale regelmäßig privat sichern.
 
 `npm run build:cloud` baut nach `dist-cloud`, der lokale Build bleibt in `dist`. Vercel erhält nur `WEDDING_BACKEND_URL` und den öffentlichen `WEDDING_BACKEND_PUBLIC_KEY`. Der Supabase-Administrationsschlüssel bleibt ausschließlich in der Edge-Runtime. Alle Anwendungstabellen haben RLS, direkten anonymen Zugriff und öffentliche Originale gibt es nicht. Produktionsadressen werden in `wedding_config.allowed_origins` ausdrücklich freigegeben.

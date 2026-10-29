@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { cloudMode } from "./documents";
 import type { ReactNode } from "react";
 import {
@@ -167,6 +167,7 @@ function PlanningApp({
 }) {
   const [state, setState] = useState<AppState | null>(null);
   const [connectionError, setConnectionError] = useState("");
+  const refreshRun = useRef(0);
   const [section, setSection] = useState<Section>(currentSection);
   const [notice, setNoticeState] = useState<{
     text: string;
@@ -234,11 +235,14 @@ function PlanningApp({
     return () => window.removeEventListener("popstate", update);
   }, []);
   const refresh = useCallback(async () => {
+    const run = ++refreshRun.current;
     try {
       const data = await getState();
+      if (run !== refreshRun.current) return;
       setState(data);
       setConnectionError("");
     } catch (error) {
+      if (run !== refreshRun.current) return;
       setConnectionError((error as Error).message);
     }
   }, []);
@@ -253,6 +257,7 @@ function PlanningApp({
     const focus = () => void refresh();
     window.addEventListener("focus", focus);
     return () => {
+      ++refreshRun.current;
       clearInterval(timer);
       window.removeEventListener("focus", focus);
     };

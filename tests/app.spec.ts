@@ -2438,6 +2438,117 @@ test("parallel guest responses merge per celebration with explicit choices for t
   }
 });
 
+test("late background responses never replace newer planning or newer connection errors", async ({
+  page,
+}) => {
+  await login(page);
+  await section(page, "Aufgaben");
+  let next: "" | "old-state" | "old-error" | "new-error" = "";
+  let release!: () => void;
+  let captured!: () => void;
+  let capture = Promise.resolve();
+  let responseFinished = Promise.resolve();
+  function hold(mode: "old-state" | "old-error") {
+    next = mode;
+    capture = new Promise<void>((resolve) => {
+      captured = resolve;
+    });
+    const response = page.waitForResponse(
+      (value) =>
+        value.url().endsWith("/api/state") &&
+        value.headers()["x-synthetic-delayed"] === "yes",
+    );
+    responseFinished = response.then(async (value) => {
+      await value.finished();
+      await page.evaluate(
+        () =>
+          new Promise<void>((resolve) => {
+            requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+          }),
+      );
+    });
+  }
+  await page.route("**/api/state", async (route) => {
+    const mode = next;
+    next = "";
+    if (!mode) return route.continue();
+    if (mode === "new-error")
+      return route.fulfill({
+        status: 503,
+        json: { error: "Neue Verbindung unterbrochen" },
+      });
+    const snapshot =
+      mode === "old-state" ? await (await route.fetch()).json() : null;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    captured();
+    await gate;
+    await route.fulfill({
+      status: mode === "old-error" ? 503 : 200,
+      headers: { "x-synthetic-delayed": "yes" },
+      json: snapshot || { error: "Überholter Verbindungsfehler" },
+    });
+  });
+  const focus = () =>
+    page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  const task = page.getByText("Frisch gespeicherte Planung", { exact: true });
+  hold("old-state");
+  await focus();
+  await capture;
+  try {
+    await page
+      .getByRole("button", { name: "Aufgabe anlegen", exact: true })
+      .click();
+    const editor = page.getByRole("dialog");
+    await editor
+      .getByRole("textbox", { name: "Aufgabe", exact: true })
+      .fill("Frisch gespeicherte Planung");
+    await editor
+      .getByRole("button", { name: "Dauerhaft speichern", exact: true })
+      .click();
+    await expect(task).toBeVisible();
+  } finally {
+    release();
+  }
+  await responseFinished;
+  expect(await task.count()).toBe(1);
+
+  hold("old-error");
+  await focus();
+  await capture;
+  const fresh = page.waitForResponse(
+    (value) => value.url().endsWith("/api/state") && value.ok(),
+  );
+  await focus();
+  await (await fresh).finished();
+  release();
+  await responseFinished;
+  expect(await page.getByText(/Überholter Verbindungsfehler/).count()).toBe(0);
+  await expect(task).toBeVisible();
+
+  hold("old-state");
+  await focus();
+  await capture;
+  next = "new-error";
+  await focus();
+  await expect(
+    page.getByText(/Keine Verbindung: Neue Verbindung unterbrochen/),
+  ).toBeVisible();
+  release();
+  await responseFinished;
+  expect(
+    await page
+      .getByText(/Keine Verbindung: Neue Verbindung unterbrochen/)
+      .isVisible(),
+  ).toBe(true);
+  await page
+    .getByRole("button", { name: "Erneut verbinden", exact: true })
+    .click();
+  await expect(page.getByText(/Keine Verbindung:/)).toHaveCount(0);
+  await expect(task).toBeVisible();
+});
+
 test("unsaved planning edits survive canceled close and reload, and cannot be closed during a save", async ({
   page,
 }) => {
