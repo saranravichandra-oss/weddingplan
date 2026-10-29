@@ -5,6 +5,8 @@ export default defineConfig({
   testMatch: "app.spec.ts",
   workers: 1,
   timeout: 120000,
+  expect: { timeout: 15000 },
+  outputDir: "../../test-results/cloud",
   use: {
     baseURL: process.env.WEDDING_TEST_URL || "http://127.0.0.1:5193",
     headless: true,
