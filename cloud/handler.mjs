@@ -120,27 +120,22 @@ export function createCloudHandler(db) {
   const table = (name) => db.from("wedding_" + name);
   const allRows = async (name, columns = "*", filters = {}) => {
     const rows = [];
-    let cursor, expected;
+    let cursor;
     for (;;) {
-      let operation = table(name).select(
-        columns,
-        cursor === undefined ? { count: "exact" } : undefined,
-      );
+      let operation = table(name).select(columns, { count: "exact" });
       for (const [column, value] of Object.entries(filters))
         operation = operation.eq(column, value);
       if (cursor !== undefined) operation = operation.gt("id", cursor);
       const result = await operation.order("id").limit(500);
       const page = await query(result);
-      if (cursor === undefined && Number.isInteger(result.count))
-        expected = result.count;
       if (!Array.isArray(page)) throw new Error("DatabaseError");
       if (!page.length) {
-        if (expected !== undefined && rows.length < expected)
-          throw new Error("DatabaseError");
+        if (result.count > 0) throw new Error("DatabaseError");
         return rows;
       }
       rows.push(...page);
-      if (expected !== undefined && rows.length >= expected) return rows;
+      if (Number.isInteger(result.count) && page.length >= result.count)
+        return rows;
       const next = page.at(-1).id;
       if (next === undefined || next === cursor)
         throw new Error("DatabaseError");

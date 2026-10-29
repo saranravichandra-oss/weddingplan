@@ -8,8 +8,14 @@ const sessionToken = "synthetic-local-pagination-session";
 const date = (offset) => new Date(1793200000000 + offset * 1000).toISOString();
 
 // This adapter models PostgREST's capped selects in memory. It never connects to Supabase.
-function fixture({ cap = 1000, counts = true, failHistoryPage = false } = {}) {
-  const guests = Array.from({ length: 1201 }, (_, index) => ({
+function fixture({
+  cap = 1000,
+  counts = true,
+  failHistoryPage = false,
+  guestCount = 1201,
+  insertBetweenPages = false,
+} = {}) {
+  const guests = Array.from({ length: guestCount }, (_, index) => ({
     id: `guest-${String(index).padStart(5, "0")}`,
     kind: "guests",
     data: { name: `Synthetic guest ${index}`, partySize: 1 },
@@ -70,6 +76,7 @@ function fixture({ cap = 1000, counts = true, failHistoryPage = false } = {}) {
     })),
   };
   const calls = [];
+  let inserted = false;
   const db = {
     storage: { from: () => ({}) },
     rpc: async (name) => {
@@ -134,6 +141,25 @@ function fixture({ cap = 1000, counts = true, failHistoryPage = false } = {}) {
                   data: null,
                   error: { message: "synthetic database detail" },
                 };
+              if (
+                insertBetweenPages &&
+                !inserted &&
+                name === "wedding_records" &&
+                filters.some(
+                  (filter) =>
+                    filter.column === "kind" && filter.value === "guests",
+                ) &&
+                filters.some(
+                  (filter) => filter.column === "id" && filter.op === "gt",
+                )
+              ) {
+                inserted = true;
+                tables.wedding_records.push({
+                  ...guests[0],
+                  id: "guest-00700-extra",
+                  data: { name: "Added during pagination", partySize: 1 },
+                });
+              }
               let rows = tables[name].filter((row) =>
                 filters.every(({ column, value, op }) =>
                   op === "eq" ? row[column] === value : row[column] > value,
@@ -215,6 +241,16 @@ test("cloud state and export include collections beyond the default thousand-row
   assert.equal("id" in data.history[0], false);
   assert.equal("users" in data, false);
   assert.equal("password" in data, false);
+});
+
+test("an insertion between pages never makes an existing final record disappear from the export", async () => {
+  const { request } = fixture({ guestCount: 1000, insertBetweenPages: true });
+  const response = await request("/export");
+  assert.equal(response.status, 200);
+  const data = await response.json();
+  assert.equal(data.guests.length, 1001);
+  assert.ok(data.guests.some((guest) => guest.id === "guest-00999"));
+  assert.equal(new Set(data.guests.map((guest) => guest.id)).size, 1001);
 });
 
 test("cloud pagination follows stable cursors even when the service caps pages below the requested size", async () => {
