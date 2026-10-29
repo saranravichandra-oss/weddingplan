@@ -1,5 +1,7 @@
 # Wedding SS: Nachtarbeit bis 29. Oktober 2026, 09:00 Europe/Berlin
 
+**Beendet auf ausdrücklichen Nutzerwunsch am 29.10.2026, ca. 07:47. Keine weitere autonome Ausbauarbeit. Beide Automationen einschließlich geplantem 09:00-Pitch sind PAUSED. Die vorherigen Fristen und Aufträge bleiben darunter als Verlauf erhalten.**
+
 ## Auftrag und letzte Präzisierungen
 
 Der Nutzer hat eigenständige Arbeit ohne weitere Rückfragen bis **Donnerstag, 29.10.2026, 09:00 Uhr** ausdrücklich freigegeben. Die Schleife lautet **Bauen → Prüfen/Testen → Korrigieren → Deployen**. Um 09:00 soll in diesem Chat ein anschaulicher Pitch mit tatsächlichen Ergebnissen erfolgen.
@@ -15,20 +17,20 @@ Die letzte Präzisierung verlangt eine **deutliche, umfangreiche, kaum wiederzue
 
 ## Laufzeit und Automationen
 
-Es bestehen zwei aktive Heartbeat-Automationen im selben Chat:
+Die beiden Heartbeat-Automationen im selben Chat sind auf den abschließenden Nutzerwunsch pausiert:
 
 - `wedding-ss-ausbau-bis-09-uhr`: einminütige Wiederanlaufabsicherung, endet zum vereinbarten Morgen. Kontinuierlich im laufenden Turn arbeiten, nicht zwischen Arbeitsabschnitten 15 Minuten warten.
 - `wedding-ss-pitch-um-09-uhr`: einmalige Übergabe um 09:00 Europe/Berlin.
 
 Die Termine wurden auf die letzten Präzisierungen aktualisiert. Nur bei wesentlichen Änderungen oder tatsächlichen Problemen melden; keine wiederholten Statusmeldungen ohne Fortschritt. Ein laufender Turn kann länger als ein Intervall dauern. Nicht gleichzeitig dieselben Dateien bearbeiten oder bereits erledigte Arbeit neu beginnen. Vor 09:00 keine große unfertige Baustelle eröffnen.
 
-## Aktueller geprüfter Stand (29.10.2026, ca. 07:36)
+## Abschließender geprüfter Stand (29.10.2026, ca. 07:47)
 
-- Frontend-/Proxy-Code `9465c8994916f9e6cf6965e401f47afc750638ac`, Vercel READY `dpl_5WuA1FiJrXZAn2uJxgBv6SsQ6Dcg`, API tatsächlich Frankfurt. Backend weiterhin `d785fc7a3755dce120becd29c326aa17ed7ed234`, Supabase Edge v8 unverändert. Dieselben Hobby-/Free-Projekte.
-- Beide Builds und vollständiger lokaler Browserlauf mit 40 Abläufen bestanden; sämtliche 42 Node-Tests erfolgreich. Die echte Cloud-Browserversion ist für die Vorschauprüfung ausschließlich mit isoliertem lokalem Backend und synthetischen Daten verbunden. Keine produktiven Fixture-Tests.
-- Produktions-JavaScript `index-BJh8AnJP.js` und CSS `index-CW8pULw2.css` stimmen per SHA-256 mit dem geprüften Cloud-Build überein. Startseite/Authstatus 200, paidApiCalls=false; State, Export und Originalroute anonym 401.
+- Frontend-/Proxy-Code `c4c124ae054127f7756a0ebd771bd6b03fc835b2`, Vercel READY `dpl_3XqjzRvmXdXtHCvPwvgz1UxrUt6d`, API tatsächlich Frankfurt. Backend weiterhin `d785fc7a3755dce120becd29c326aa17ed7ed234`, Supabase Edge v8 unverändert. Dieselben Hobby-/Free-Projekte.
+- Beide Builds und vollständiger lokaler Browserlauf mit 41 Abläufen bestanden; sämtliche 42 Node-Tests erfolgreich. Die echte Cloud-Browserversion ist für die Vorschauprüfung ausschließlich mit isoliertem lokalem Backend und synthetischen Daten verbunden. Keine produktiven Fixture-Tests.
+- Produktions-JavaScript `index-BhhMhy3U.js` und CSS `index-B1daYsR6.css` stimmen per SHA-256 mit dem geprüften Cloud-Build überein. Startseite/Authstatus 200, paidApiCalls=false; State, Export und Originalroute anonym 401.
 - 24 Recherchevorschläge: dreizehn tamilisch ausgerichtete Dienstleister und elf Locations. Echte Planung, Konten und Originale unverändert. Touch-Felder anhand gerenderter Schriftgrößen geprüft; kein physisches iPhone-/Safari-Zoomverhalten behaupten.
-- Acht Pitchfolien vorbereitet, gerendert und gelesen; Recherchefolie und Quellennotizen auf 24/13/11 abgeglichen. Noch nicht übergeben. Private Ausgabe-/Wiederaufnahmereferenz `.wedding-cloud/pitch-presentation.json`, Erläuterungen in `docs/pitch-2026-10-29.md`. Übergabe bleibt 09:00 Europe/Berlin.
+- Acht Pitchfolien vorbereitet, gerendert und gelesen; Recherchefolie und Quellennotizen auf 24/13/11 abgeglichen. Noch nicht übergeben. Private Ausgabe-/Wiederaufnahmereferenz `.wedding-cloud/pitch-presentation.json`, Erläuterungen in `docs/pitch-2026-10-29.md`. Die geplante automatische 09:00-Übergabe wurde auf den abschließenden Nutzerwunsch ebenfalls pausiert.
 
 ## Tatsächlicher Ausgangsstand (historisch)
 
@@ -322,3 +324,13 @@ Ein neuer Browserablauf verwendet den tatsächlich gebauten Cloud-Client, aber a
 Der Teststandard baut jetzt beide Frontendvarianten, damit dieser Cloud-Client-Nachweis keine veralteten Artefakte verwenden kann. Vollständiger Browserlauf mit 40 Prüfungen bestanden; sämtliche 42 Node-Tests erfolgreich. Lokaler und Cloud-Build bestanden. Keine neue Abhängigkeit. README, Plan und Pitchnachweise aktualisiert.
 
 Code `9465c8994916f9e6cf6965e401f47afc750638ac`, Vercel READY `dpl_5WuA1FiJrXZAn2uJxgBv6SsQ6Dcg` mit genau diesem Git-SHA und fra1. JavaScript `index-BJh8AnJP.js` und CSS `index-CW8pULw2.css` per SHA-256 identisch zum geprüften Cloud-Build. Startseite/Authstatus 200, paidApiCalls=false; State, Export und Originalroute anonym 401. API tatsächlich fra1::fra1. Edge v8, Schema, echte Konten, private Planung und Originale unverändert. Acht vorbereitete Folien sachlich unverändert, weiterhin keine Übergabe vor 09:00.
+
+Sechsunddreißigster und abschließender Arbeitsabschnitt veröffentlicht: frontend-a11y-Skill vollständig gelesen und angewandt. Konkrete Tastaturlücke vor Korrektur reproduziert: „Zum Inhalt“ verschob den Bildausschnitt, setzte aber keinen tatsächlichen DOM-Fokus. Das Hauptziel ist jetzt mit tabindex=-1 programmatisch fokussierbar, ohne zusätzlich in der normalen Tabreihenfolge zu erscheinen. Nach einem tatsächlichen Bereichswechsel führt der Fokus zur neuen Hauptüberschrift; der Seitentitel beschreibt den Bereich. Zurück-Navigation wird ebenso berücksichtigt. Ein offener Dialog wird nicht übergangen. Hintergrundabgleiche laufen ohne Fokusversetzung; beim Abmelden wird der ursprüngliche allgemeine Seitentitel wiederhergestellt. Keine neue Bibliothek, kein positiver tabindex. [MDN, Tastaturnavigation und tabindex](https://developer.mozilla.org/en-US/docs/Web/Accessibility/Guides/Keyboard-navigable_JavaScript_widgets) als Primärreferenz gelesen.
+
+Neuer lokaler Browserablauf prüft den echten Sprunglink, Enter-Aktivierung der Navigation, mobile Bereichswahl über „Mehr“, Escape-Fokusrückgabe, Browser-Zurück, passende Seitentitel und unveränderten Fokus/Text im Suchfeld nach tatsächlichem Hintergrundabgleich. Nach der neuen Überschrift erreicht Tab direkt die nächste Inhaltsaktion. 320-px-Fokusansicht visuell gelesen, privat unter `.wedding-cloud/pitch-assets/keyboard-content-320.png`. Drei gezielte Abläufe und anschließend beide Builds, sämtliche 42 Node-Tests sowie alle 41 Browserabläufe bestanden (2,5 Minuten). Keine manuelle Screenreader- oder physische iPhone-Prüfung behauptet.
+
+Weitere deutsche Styling-Spuren gesichtet und ohne ausreichend eigene aktuelle tamilische Leistungsquelle nicht in die Empfehlungen aufgenommen. Bestehende Vithya-Quelle erneut direkt gelesen. Unverändert 24 recherchierte Vorschläge, 13 tamilisch ausgerichtete Dienstleister und 11 Locations. Keine Anfrage, Buchung oder kostenpflichtige API aktiviert.
+
+Code `c4c124ae054127f7756a0ebd771bd6b03fc835b2`, Vercel READY `dpl_3XqjzRvmXdXtHCvPwvgz1UxrUt6d` mit genau diesem Git-SHA und fra1. JavaScript `index-BhhMhy3U.js` und CSS `index-B1daYsR6.css` per SHA-256 gleich dem geprüften Cloud-Build. Startseite/Authstatus 200, paidApiCalls=false; State, Export und Originalroute anonym 401. API tatsächlich fra1::fra1. Backend d785fc7 / Edge v8, Schema, echte Konten, private Planung und Originale unverändert.
+
+Der Nutzer hat danach ausdrücklich „beende deine arbeit“ verlangt. Keine weitere Produktänderung begonnen. Ausbau-Automation und 09:00-Pitch mit automation_update auf PAUSED gesetzt; Abschlussnachweise und privates Pitchmanifest gesichert. Acht vorbereitete Folien bleiben als gespeicherter Entwurf erhalten, keine automatische spätere Übergabe mehr vorgesehen. Dieser Abschlusswunsch ersetzt die vorherige Anweisung zur kontinuierlichen Arbeit bis 09:00.
