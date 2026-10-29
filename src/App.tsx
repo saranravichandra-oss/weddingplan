@@ -52,6 +52,7 @@ import Team from "./components/Team";
 import GuestImport from "./components/GuestImport";
 import Dashboard from "./components/Dashboard";
 import Discover from "./components/Discover";
+import OfferCards from "./components/OfferCards";
 import { currentSection, sectionHref } from "./navigation";
 import { clearOfferDrafts } from "./offer-drafts";
 import { attendanceValues, peopleCount } from "../shared/guests.mjs";
@@ -165,7 +166,20 @@ function PlanningApp({ user, logout }: { user: User; logout: () => void }) {
   const [guestResponse, setGuestResponse] = useState("Alle Rückmeldungen");
   const [scenarioGuests, setScenarioGuests] = useState(200);
   const [moreOfferDetails, setMoreOfferDetails] = useState(false);
+  const [offerLayout, setOfferLayout] = useState<"cards" | "table" | null>(
+    null,
+  );
+  const [smallScreen, setSmallScreen] = useState(
+    () => matchMedia("(max-width: 700px)").matches,
+  );
+  const currentOfferLayout = offerLayout || (smallScreen ? "cards" : "table");
   const [guestImport, setGuestImport] = useState(false);
+  useEffect(() => {
+    const query = matchMedia("(max-width: 700px)");
+    const update = () => setSmallScreen(query.matches);
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, []);
   useEffect(() => {
     const update = () => {
       setSection(currentSection());
@@ -445,6 +459,45 @@ function PlanningApp({ user, logout }: { user: User; logout: () => void }) {
         ] as [string, keyof Offer][])
       : []),
   ];
+  const offerActions = (offer: Offer) => (
+    <div className="offer-actions">
+      <Button secondary onClick={() => setReview({ offer })}>
+        Original & Angaben
+      </Button>
+      {!state.costs.some((cost) => cost.offerId === offer.id) && (
+        <button
+          className="text-button"
+          onClick={() => {
+            setBooking(offer);
+            setBookingError("");
+          }}
+        >
+          Buchung bestätigen <Check size={15} />
+        </button>
+      )}
+      {offer.status !== "Gebucht" && (
+        <button
+          className="text-button"
+          onClick={() =>
+            void mutate("offers", {
+              ...offer,
+              status: offer.status === "Favorit" ? "Geprüft" : "Favorit",
+            })
+          }
+        >
+          {offer.status === "Favorit"
+            ? "Favorit aufheben"
+            : "Als Favorit markieren"}
+        </button>
+      )}
+      <button
+        className="text-button delete-link"
+        onClick={() => void remove("offers", offer)}
+      >
+        Angebot löschen
+      </button>
+    </div>
+  );
   const comparison = (
     <>
       <Title
@@ -456,7 +509,9 @@ function PlanningApp({ user, logout }: { user: User; logout: () => void }) {
           </Button>
         }
       />
-      <section className="panel comparison-panel">
+      <section
+        className={`panel comparison-panel ${currentOfferLayout === "cards" ? "cards-layout" : ""}`}
+      >
         <Heading
           title="Angebote im Vergleich"
           subtitle="Nur von euch geprüfte Angaben. Unterschiedlicher Umfang bleibt sichtbar."
@@ -493,7 +548,26 @@ function PlanningApp({ user, logout }: { user: User; logout: () => void }) {
             />
           </label>
         </div>
-        {filteredOffers.length > 0 && (
+        {state.offers.length > 0 && (
+          <div className="offer-view-switch" aria-label="Angebotsansicht">
+            <span>So behaltet ihr den Überblick</span>
+            <div>
+              <button
+                aria-pressed={currentOfferLayout === "cards"}
+                onClick={() => setOfferLayout("cards")}
+              >
+                Kartenübersicht
+              </button>
+              <button
+                aria-pressed={currentOfferLayout === "table"}
+                onClick={() => setOfferLayout("table")}
+              >
+                Nebeneinander
+              </button>
+            </div>
+          </div>
+        )}
+        {filteredOffers.length > 0 && currentOfferLayout === "table" && (
           <div
             className="offer-selection"
             aria-label="Angebote für Vergleich auswählen"
@@ -525,7 +599,9 @@ function PlanningApp({ user, logout }: { user: User; logout: () => void }) {
             ))}
           </div>
         )}
-        {compared.length ? (
+        {currentOfferLayout === "cards" && filteredOffers.length > 0 ? (
+          <OfferCards offers={filteredOffers} actions={offerActions} />
+        ) : compared.length ? (
           <div className="table-scroll">
             <table className="live-comparison">
               <caption className="sr-only">
@@ -608,48 +684,7 @@ function PlanningApp({ user, logout }: { user: User; logout: () => void }) {
                 <tr>
                   <th>Prüfen & entscheiden</th>
                   {compared.map((offer) => (
-                    <td key={offer.id}>
-                      <div className="offer-actions">
-                        <Button secondary onClick={() => setReview({ offer })}>
-                          Original & Angaben
-                        </Button>
-                        {!state.costs.some((c) => c.offerId === offer.id) && (
-                          <button
-                            className="text-button"
-                            onClick={() => {
-                              setBooking(offer);
-                              setBookingError("");
-                            }}
-                          >
-                            Buchung bestätigen <Check size={15} />
-                          </button>
-                        )}
-                        {offer.status !== "Gebucht" && (
-                          <button
-                            className="text-button"
-                            onClick={() =>
-                              void mutate("offers", {
-                                ...offer,
-                                status:
-                                  offer.status === "Favorit"
-                                    ? "Geprüft"
-                                    : "Favorit",
-                              })
-                            }
-                          >
-                            {offer.status === "Favorit"
-                              ? "Favorit aufheben"
-                              : "Als Favorit markieren"}
-                          </button>
-                        )}
-                        <button
-                          className="text-button delete-link"
-                          onClick={() => void remove("offers", offer)}
-                        >
-                          Angebot löschen
-                        </button>
-                      </div>
-                    </td>
+                    <td key={offer.id}>{offerActions(offer)}</td>
                   ))}
                 </tr>
               </tfoot>
@@ -659,21 +694,25 @@ function PlanningApp({ user, logout }: { user: User; logout: () => void }) {
           <div className="empty-state">
             <Scales size={50} weight="thin" />
             <h2>
-              {search || filter !== "Alle Kategorien"
-                ? "Keine passenden Angebote."
-                : "Eure Angebote kommen hier zusammen."}
+              {filteredOffers.length > 0
+                ? "Wählt eure Angebote für den Vergleich."
+                : search || filter !== "Alle Kategorien"
+                  ? "Keine passenden Angebote."
+                  : "Eure Angebote kommen hier zusammen."}
             </h2>
             <p>
-              PDF, Screenshot oder Text hinzufügen. Die App liest den Inhalt
-              lokal, zeigt Fundstellen und übernimmt erst eure bestätigten
-              Angaben.
+              {filteredOffers.length > 0
+                ? "Oben bis zu vier Angebote auswählen oder zur Kartenübersicht wechseln."
+                : "PDF, Screenshot oder Text hinzufügen. Die App liest den Inhalt lokal, zeigt Fundstellen und übernimmt erst eure bestätigten Angaben."}
             </p>
-            <Button secondary onClick={() => setReview({})}>
-              Erstes Angebot hinzufügen <ArrowRight size={17} />
-            </Button>
+            {!filteredOffers.length && (
+              <Button secondary onClick={() => setReview({})}>
+                Erstes Angebot hinzufügen <ArrowRight size={17} />
+              </Button>
+            )}
           </div>
         )}
-        {compared.length > 0 && (
+        {compared.length > 0 && currentOfferLayout === "table" && (
           <button
             className="text-button compare-details-toggle"
             aria-expanded={moreOfferDetails}

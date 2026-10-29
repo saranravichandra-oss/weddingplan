@@ -511,3 +511,104 @@ test("blocked tab storage warns before discarding and does not turn a successful
     ),
   ).toHaveLength(1);
 });
+
+test("mobile offers show readable complete cards and can switch to a side by side comparison", async ({
+  page,
+}, testInfo) => {
+  await login(page);
+  const auth = await (await page.request.get("/api/auth/me")).json();
+  for (const data of [
+    {
+      name: "Mobil Foto & Film",
+      price: 2450,
+      photos: "250 bearbeitete Bilder",
+      video: "60 Minuten Film und ein Highlight",
+      team: "2 Foto + 1 Video",
+      hours: "8 Stunden",
+      delivery: "12 Wochen",
+      included: "Galerie und Datendownload",
+      optional: "Album extra",
+      evidence: { photos: [{ page: 1, quote: "250 bearbeitete Bilder" }] },
+    },
+    {
+      name: "Mobil Zweite Auswahl",
+      price: null,
+      photos: "Umfang noch offen",
+      video: "Nicht enthalten",
+    },
+  ]) {
+    const response = await page.request.post("/api/records/offers", {
+      headers: { "X-CSRF-Token": auth.csrf },
+      data: { ...data, currency: "EUR", confirmed: true },
+    });
+    expect(response.ok()).toBeTruthy();
+  }
+  await page.setViewportSize({ width: 390, height: 950 });
+  await section(page, "Dienstleister");
+  await page.getByRole("searchbox", { name: "Anbieter suchen" }).fill("Mobil");
+  await expect(
+    page.getByRole("button", { name: "Kartenübersicht", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
+  const card = page.getByRole("article", {
+    name: "Mobil Foto & Film",
+    exact: true,
+  });
+  await expect(card).toContainText("2.450");
+  await expect(card).toContainText("250 bearbeitete Bilder");
+  await expect(card).toContainText("60 Minuten Film");
+  await expect(card).toContainText("12 Wochen");
+  await expect(card).toContainText("Fundstelle: Seite 1");
+  await expect(
+    page
+      .getByRole("article", { name: "Mobil Zweite Auswahl", exact: true })
+      .locator(".offer-card-price"),
+  ).toContainText("Nicht angegeben");
+  await card
+    .getByRole("button", { name: "Als Favorit markieren", exact: true })
+    .click();
+  await expect(card).toContainText("Favorit aufheben");
+  await page.screenshot({
+    path: testInfo.outputPath("offer-cards-390.png"),
+    fullPage: true,
+  });
+  await page.screenshot({
+    path: testInfo.outputPath("offer-cards-viewport-390.png"),
+  });
+  await page
+    .getByRole("button", { name: "Nebeneinander", exact: true })
+    .click();
+  await expect(page.locator(".live-comparison")).toBeVisible();
+  await expect(
+    page.getByRole("columnheader", { name: /Mobil Foto & Film/ }),
+  ).toBeVisible();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBeTruthy();
+  await page
+    .getByRole("button", { name: "Kartenübersicht", exact: true })
+    .click();
+  await card
+    .getByRole("button", { name: "Original & Angaben", exact: true })
+    .click();
+  await expect(
+    page.getByRole("textbox", { name: "Anbieter", exact: true }),
+  ).toHaveValue("Mobil Foto & Film");
+  await page.getByRole("button", { name: "Dialog schließen" }).click();
+});
+
+test("a shared section link keeps its destination through sign in", async ({
+  page,
+}) => {
+  await page.goto("/?bereich=entdecken");
+  await page
+    .getByRole("textbox", { name: "E-Mail als Anmeldename" })
+    .fill(email);
+  await page.getByLabel("Passwort", { exact: true }).fill(password);
+  await page.getByRole("button", { name: "Anmelden", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: /Hier könnte eure/ }),
+  ).toBeVisible();
+  await expect(page).toHaveURL(/bereich=entdecken/);
+});

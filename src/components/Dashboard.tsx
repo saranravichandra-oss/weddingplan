@@ -211,6 +211,23 @@ export default function Dashboard({
           </div>
         </section>
       </div>
+      <section className="atelier-discover-invitation">
+        <div>
+          <p className="atelier-kicker">VON DER IDEE ZUR ENTSCHEIDUNG</p>
+          <h2>
+            Tamilische Dienstleister.
+            <br />
+            <em>Neue Lieblingsorte.</em>
+          </h2>
+          <p>
+            Entdeckt unsere recherchierte Vorauswahl mit Quellen, Leistungen und
+            den Fragen, die ihr noch klären könnt.
+          </p>
+        </div>
+        <Button secondary onClick={() => go("Entdecken")}>
+          Vorauswahl entdecken <ArrowUpRight size={18} />
+        </Button>
+      </section>
     </div>
   );
 }

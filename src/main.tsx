@@ -7,6 +7,7 @@ import "./styles.css";
 import "./app.css";
 import "./atelier.css";
 import "./discover.css";
+import "./offer-cards.css";
 
 createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

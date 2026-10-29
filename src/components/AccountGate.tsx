@@ -70,7 +70,7 @@ export default function AccountGate({
                 { method: "POST", body: json({ ...data, invitation }) },
               );
               setCsrf(response.csrf);
-              history.replaceState({}, "", location.pathname);
+              history.replaceState({}, "", location.pathname + location.search);
               onLogin(response.user);
             } catch (error) {
               setError((error as Error).message);
