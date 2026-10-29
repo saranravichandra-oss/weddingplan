@@ -6,6 +6,7 @@
   "regions": ["fra1"],
   "functions": {
     "api/index.mjs": {
+      "regions": ["fra1"],
       "maxDuration": 30
     }
   },
