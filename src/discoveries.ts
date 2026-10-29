@@ -549,19 +549,25 @@ export const discoveries: Discovery[] = [
       ["Haupthaus", "Bis 200 laut Website"],
       ["220 Gäste", "Innen nicht bestätigt"],
       ["Externes Catering", "Nicht bestätigt"],
-      ["Preis", "Angebot offen"],
+      ["Öffentliche Miete", "3-Tage-Special: 7.800 € laut Mappe"],
+      ["Hauptsaison Mai–Sept", "Mindestumsatz ab 16.000 € laut Website"],
     ],
     attention:
-      "Die beworbene Kapazität des Haupthauses enthält noch keinen bestätigten Dinnerplan mit Tanzfläche.",
+      "Die Mietmappe trägt Stand 16.02.2026. Miete und Mindestumsatz sind keine addierten Gesamtpreise; Anrechnung, MwSt. und aktuelle Konditionen ausdrücklich klären. Gästehäuser sind im Miet-Special ausgenommen. Ein Dinnerplan mit Tanzfläche für 220 ist weiterhin nicht bestätigt.",
     questions: [
       "Wie sitzen 220 Gäste wetterfest mit Tanzfläche und Buffet?",
       "Ist externes tamilisches Catering möglich?",
+      "Welche Leistungen werden auf den Mindestumsatz angerechnet und wie gilt er bei externem Catering?",
       "Was kosten Zelt, Technik, Transport und Übernachtungen zusätzlich?",
     ],
     sources: [
       {
         title: "Eigene Hochzeitsseite",
         url: "https://mq-ranch.de/hochzeitslocations/hochzeitslocation-in-berlin-und-brandenburg/",
+      },
+      {
+        title: "Eigene Bankettmappe · Stand 16.02.2026",
+        url: "https://mq-ranch.de/wp-content/uploads/MQR_Hochzeiten.pdf",
       },
     ],
   },
