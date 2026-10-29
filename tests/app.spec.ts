@@ -1219,6 +1219,217 @@ test("researched suggestions stay separate until explicitly remembered and keep 
   ).toContainText("Gefunden");
 });
 
+test("remembering research after a lost success response creates only one contact", async ({
+  page,
+}) => {
+  await login(page);
+  await section(page, "Entdecken");
+  await page
+    .getByRole("searchbox", { name: "Vorschläge durchsuchen" })
+    .fill("Event by Sakthys");
+  const card = page.getByRole("article", {
+    name: "Event by Sakthys",
+    exact: true,
+  });
+  let posts = 0;
+  await page.route("**/api/records/providers", async (route) => {
+    if (route.request().method() !== "POST") return route.continue();
+    posts++;
+    const response = await route.fetch();
+    expect(response.ok()).toBeTruthy();
+    if (posts === 1)
+      return route.fulfill({
+        status: 503,
+        json: { error: "Synthetisch verlorene Speicherbestätigung" },
+      });
+    await route.fulfill({ response });
+  });
+  const control = card.getByRole("button", {
+    name: /^(Gemeinsam merken|Gemerkt|Wird gemerkt …)$/,
+  });
+  await control.click();
+  await expect(control).not.toHaveText("Wird gemerkt …");
+  if (await control.isEnabled()) {
+    await control.click();
+    await expect(control).toBeDisabled();
+  }
+  const state = await (await page.request.get("/api/state")).json();
+  expect(
+    state.providers.filter(
+      (value: { name: string }) => value.name === "Event by Sakthys",
+    ),
+  ).toHaveLength(1);
+  expect(posts).toBe(1);
+  await expect(control).toHaveText("Gemerkt");
+});
+
+test("an uncertain remembered contact is checked without another write and can later be removed", async ({
+  page,
+}, testInfo) => {
+  await login(page);
+  const before = await (await page.request.get("/api/state")).json();
+  await section(page, "Entdecken");
+  await page
+    .getByRole("searchbox", { name: "Vorschläge durchsuchen" })
+    .fill("Amani Events");
+  const card = page.getByRole("article", { name: "Amani Events", exact: true });
+  await page.setViewportSize({ width: 320, height: 900 });
+  await card.getByRole("button", { name: "Details & Fragen" }).click();
+  const dialog = page.getByRole("dialog", {
+    name: "Amani Events",
+    exact: true,
+  });
+  let posts = 0,
+    blockReads = false;
+  await page.route("**/api/state", (route) =>
+    blockReads
+      ? route.fulfill({
+          status: 503,
+          json: { error: "Synthetisch unterbrochene Bestandsprüfung" },
+        })
+      : route.continue(),
+  );
+  await page.route("**/api/records/providers", async (route) => {
+    if (route.request().method() !== "POST") return route.continue();
+    posts++;
+    const response = await route.fetch();
+    expect(response.ok()).toBeTruthy();
+    blockReads = true;
+    await route.fulfill({
+      status: 503,
+      json: { error: "Synthetisch verlorene Bestätigung" },
+    });
+  });
+  await dialog
+    .getByRole("button", { name: "Gemeinsam merken", exact: true })
+    .click();
+  const recovery = page.getByRole("region", {
+    name: "Speicherbestätigung prüfen",
+    exact: true,
+  });
+  await expect(recovery).toBeVisible();
+  await expect(recovery).toBeFocused();
+  await expect(
+    dialog.getByRole("button", { name: "Gemeinsam merken", exact: true }),
+  ).toBeDisabled();
+  await recovery
+    .getByRole("button", { name: "Speicherung prüfen", exact: true })
+    .click();
+  await expect(dialog.getByRole("alert")).toContainText(
+    "Speicherbestätigung bleibt offen",
+  );
+  expect(posts).toBe(1);
+  await dialog
+    .getByRole("button", { name: "Dialog schließen", exact: true })
+    .click();
+  await expect(recovery).toBeFocused();
+  await recovery.screenshot({
+    path: testInfo.outputPath("remember-recovery-320.png"),
+  });
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBeTruthy();
+  blockReads = false;
+  await recovery
+    .getByRole("button", { name: "Speicherung prüfen", exact: true })
+    .click();
+  await expect(recovery).toHaveCount(0);
+  await expect(
+    card.getByRole("button", { name: "Gemerkt", exact: true }),
+  ).toBeDisabled();
+  expect(posts).toBe(1);
+  const after = await (await page.request.get("/api/state")).json();
+  const contacts = after.providers.filter(
+    (value: { name: string }) => value.name === "Amani Events",
+  );
+  expect(contacts).toHaveLength(1);
+  expect(after.costs).toEqual(before.costs);
+  expect(after.offers).toEqual(before.offers);
+  const auth = await (await page.request.get("/api/auth/me")).json();
+  expect(
+    (
+      await page.request.delete("/api/records/providers/" + contacts[0].id, {
+        headers: { "X-CSRF-Token": auth.csrf },
+        data: { version: contacts[0].version },
+      })
+    ).ok(),
+  ).toBeTruthy();
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect(
+    card.getByRole("button", { name: "Gemeinsam merken", exact: true }),
+  ).toBeEnabled();
+});
+
+test("remembering waits for the shared list and a rejected write can be retried deliberately", async ({
+  page,
+}) => {
+  await login(page);
+  await section(page, "Entdecken");
+  await page
+    .getByRole("searchbox", { name: "Vorschläge durchsuchen" })
+    .fill("Nandy’s Catering");
+  const card = page.getByRole("article", {
+    name: "Nandy’s Catering",
+    exact: true,
+  });
+  let blockReads = true,
+    posts = 0;
+  await page.route("**/api/state", (route) =>
+    blockReads
+      ? route.fulfill({
+          status: 503,
+          json: { error: "Synthetisch keine gemeinsame Liste" },
+        })
+      : route.continue(),
+  );
+  await page.route("**/api/records/providers", async (route) => {
+    if (route.request().method() !== "POST") return route.continue();
+    if (++posts === 1)
+      return route.fulfill({
+        status: 503,
+        json: { error: "Synthetisch vor dem Speichern fehlgeschlagen" },
+      });
+    await route.continue();
+  });
+  await card
+    .getByRole("button", { name: "Gemeinsam merken", exact: true })
+    .click();
+  await expect(
+    page
+      .getByRole("alert")
+      .filter({ hasText: "Synthetisch keine gemeinsame Liste" })
+      .first(),
+  ).toBeVisible();
+  expect(posts).toBe(0);
+  blockReads = false;
+  await card
+    .getByRole("button", { name: "Gemeinsam merken", exact: true })
+    .click();
+  await expect(
+    page
+      .getByRole("alert")
+      .filter({ hasText: "im gemeinsamen Stand nicht gefunden" }),
+  ).toBeVisible();
+  await expect(
+    card.getByRole("button", { name: "Gemeinsam merken", exact: true }),
+  ).toBeEnabled();
+  await card
+    .getByRole("button", { name: "Gemeinsam merken", exact: true })
+    .click();
+  await expect(
+    card.getByRole("button", { name: "Gemerkt", exact: true }),
+  ).toBeDisabled();
+  const state = await (await page.request.get("/api/state")).json();
+  expect(
+    state.providers.filter(
+      (value: { name: string }) => value.name === "Nandy’s Catering",
+    ),
+  ).toHaveLength(1);
+  expect(posts).toBe(2);
+});
+
 test("blocked tab storage warns before discarding and does not turn a successful save into an error", async ({
   page,
 }) => {
@@ -1304,6 +1515,8 @@ test("mobile offers show readable complete cards and can switch to a side by sid
     });
     expect(response.ok()).toBeTruthy();
   }
+  // Load fixture writes explicitly; this case checks layout, not the poll timer.
+  await page.reload();
   await page.setViewportSize({ width: 390, height: 950 });
   await section(page, "Dienstleister");
   await page.getByRole("searchbox", { name: "Anbieter suchen" }).fill("Mobil");

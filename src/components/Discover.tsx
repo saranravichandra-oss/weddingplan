@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ArrowUpRight,
   BookmarkSimple,
@@ -10,7 +10,7 @@ import {
 } from "@phosphor-icons/react";
 import type { Provider, WeddingEvent } from "../data";
 import { dateText } from "../data";
-import { saveRecord } from "../api";
+import { ApiError, currentSessionVersion, getState, saveRecord } from "../api";
 import { discoveries, researchDate } from "../discoveries";
 import type { Discovery } from "../discoveries";
 import { Badge, Button, Dialog, ErrorMessage } from "./ui";
@@ -58,11 +58,24 @@ export default function Discover({
   const [minimumSeats, setMinimumSeats] = useState(0);
   const [saving, setSaving] = useState(""),
     [savedHere, setSavedHere] = useState<string[]>([]);
+  const [pending, setPending] = useState<Discovery | null>(null);
+  const recoveryRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState(""),
     [notice, setNotice] = useState("");
   const saved = (item: Discovery) =>
     savedHere.includes(item.id) ||
     providers.some((provider) => matches(item, provider));
+  useEffect(() => {
+    setSavedHere((previous) =>
+      previous.filter((id) => {
+        const item = discoveries.find((candidate) => candidate.id === id);
+        return item && !providers.some((provider) => matches(item, provider));
+      }),
+    );
+  }, [providers]);
+  useEffect(() => {
+    if (pending) recoveryRef.current?.focus();
+  }, [pending, selected]);
   const visible = discoveries.filter(
     (item) =>
       (filter === "Alle" || item.category === filter) &&
@@ -76,9 +89,12 @@ export default function Discover({
         .includes(search.toLocaleLowerCase("de")),
   );
   async function remember(item: Discovery) {
-    if (saved(item) || saving) return;
+    if (saved(item) || saving || pending) return;
+    const startedSession = currentSessionVersion();
     setSaving(item.id);
     setError("");
+    setNotice("");
+    let postStarted = false;
     const data: Partial<Provider> = {
       name: item.name,
       category: item.category,
@@ -90,23 +106,98 @@ export default function Discover({
       notes: `Recherchierter Vorschlag vom ${researchDate}.\n${item.summary}\n${item.facts.map(([key, value]) => `${key}: ${value}`).join("\n")}\n${item.attention || ""}\nOffene Fragen:\n${item.questions.join("\n")}\nQuellen:\n${item.sources.map((source) => source.url).join("\n")}`,
     };
     try {
+      const latest = await getState();
+      if (startedSession !== currentSessionVersion()) return;
+      if (latest.providers.some((provider) => matches(item, provider))) {
+        await confirmed(item, true);
+        return;
+      }
+      postStarted = true;
       await saveRecord("providers", data);
-      setSavedHere((previous) => [...previous, item.id]);
-      setNotice(
-        `${item.name} ist jetzt unter „Eure Kontakte“ für euch beide gemerkt.`,
-      );
-      await onSaved();
+      if (startedSession !== currentSessionVersion()) return;
+      await confirmed(item);
     } catch (caught) {
-      setError((caught as Error).message);
+      if (startedSession !== currentSessionVersion()) return;
+      if (!postStarted || (caught instanceof ApiError && caught.status < 500)) {
+        setError((caught as Error).message);
+      } else {
+        try {
+          await reconcile(item, startedSession);
+        } catch {
+          if (startedSession === currentSessionVersion()) {
+            setPending(item);
+            setError(
+              "Die Speicherbestätigung fehlt. Prüft zuerst den gemeinsamen Stand.",
+            );
+          }
+        }
+      }
     } finally {
       setSaving("");
     }
   }
+  async function confirmed(item: Discovery, already = false) {
+    setPending(null);
+    setError("");
+    setSavedHere((previous) =>
+      previous.includes(item.id) ? previous : [...previous, item.id],
+    );
+    setNotice(
+      `${item.name} ist ${already ? "bereits" : "jetzt"} unter „Eure Kontakte“ für euch beide gemerkt.`,
+    );
+    await onSaved().catch(() => {});
+  }
+  async function reconcile(item: Discovery, startedSession: number) {
+    const latest = await getState();
+    if (startedSession !== currentSessionVersion()) return;
+    if (latest.providers.some((provider) => matches(item, provider))) {
+      await confirmed(item, true);
+    } else {
+      setPending(null);
+      setError(
+        `${item.name} wurde im gemeinsamen Stand nicht gefunden. Ihr könnt den Vorschlag erneut merken.`,
+      );
+    }
+  }
+  async function checkPending() {
+    if (!pending || saving) return;
+    const startedSession = currentSessionVersion();
+    setSaving(pending.id);
+    setError("");
+    try {
+      await reconcile(pending, startedSession);
+    } catch {
+      if (startedSession === currentSessionVersion())
+        setError(
+          "Der gemeinsame Stand ist gerade nicht erreichbar. Die Speicherbestätigung bleibt offen.",
+        );
+    } finally {
+      setSaving("");
+    }
+  }
+  const recovery = pending && (
+    <div
+      className="discover-recovery"
+      ref={recoveryRef}
+      tabIndex={-1}
+      role="region"
+      aria-label="Speicherbestätigung prüfen"
+    >
+      <strong>Ist {pending.name} schon gemerkt?</strong>
+      <p>
+        Die Antwort war unklar. Prüft die gemeinsame Liste, bevor ihr den
+        Kontakt erneut anlegt. Diese Prüfung legt keinen neuen Eintrag an.
+      </p>
+      <Button secondary disabled={!!saving} onClick={() => void checkPending()}>
+        {saving ? "Stand wird geprüft …" : "Speicherung prüfen"}
+      </Button>
+    </div>
+  );
   const rememberButton = (item: Discovery) => (
     <Button
       secondary
       onClick={() => void remember(item)}
-      disabled={saved(item) || !!saving}
+      disabled={saved(item) || !!saving || !!pending}
     >
       {saved(item) ? <Check size={17} /> : <BookmarkSimple size={17} />}
       {saved(item)
@@ -234,6 +325,7 @@ export default function Discover({
         )}
       </section>
       <ErrorMessage message={error} />
+      {!selected && recovery}
       {notice && (
         <p className="discover-notice" role="status">
           <Check size={18} />
@@ -378,6 +470,7 @@ export default function Discover({
             </div>
             <InquiryDraft key={selected.id} item={selected} events={events} />
             <ErrorMessage message={error} />
+            {recovery}
             {rememberButton(selected)}
           </div>
         </Dialog>

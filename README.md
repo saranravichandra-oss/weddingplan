@@ -2,7 +2,7 @@
 
 Die ausgewählte Variante A als private, gemeinsam nutzbare App. React und TypeScript im Browser, wahlweise lokal mit SQLite oder online mit Vercel Hobby und Supabase Free. Es gibt keinen Codepfad für kostenpflichtige KI-Aufrufe.
 
-Die Atelier-Oberfläche bietet verlinkbare Bereiche, eine Kartenübersicht und den direkten Angebotsvergleich, Excel-Gästeimport mit Familiengrößen sowie eine getrennte recherchierte Vorauswahl. Vorschläge erzeugen erst nach ausdrücklichem Merken einen Kontakt. Öffentliche Preisbausteine sind keine persönlichen Angebote und fließen nicht automatisch ins Budget ein.
+Die Atelier-Oberfläche bietet verlinkbare Bereiche, eine Kartenübersicht und den direkten Angebotsvergleich, Excel-Gästeimport mit Familiengrößen sowie eine getrennte recherchierte Vorauswahl. Vorschläge erzeugen erst nach ausdrücklichem Merken einen Kontakt. Öffentliche Preisbausteine sind keine persönlichen Angebote und fließen nicht automatisch ins Budget ein. Vor dem Merken wird die gemeinsame Kontaktliste aktuell abgeglichen. Fehlt nach einem Speicherfehler auch die Bestandsbestätigung, bietet die App eine rein lesende Prüfung an. Ein erneuter Schreibversuch erfolgt bewusst; die Prüfung selbst legt nichts an.
 
 Auf dem Handy führen vier feste Ziele zu Übersicht, Angeboten, Gästen und Budget. „Mehr“ öffnet alle neun Planungsbereiche, einschließlich Recherche, Aufgaben, Veranstaltungen, Dokumenten und gemeinsamer Nutzung. Die kompakte Tablet-Seitenleiste behält beschriftete zugängliche Links und Tooltips.
 

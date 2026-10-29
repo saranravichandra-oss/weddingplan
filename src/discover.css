@@ -123,6 +123,24 @@
 .discover-controls {
   margin: 30px 0 14px;
 }
+.discover-recovery {
+  margin: 20px 0;
+  padding: 20px;
+  border: 1px solid #c8c8aa;
+  border-radius: 12px;
+  background: #f4f0e1;
+  color: #384d36;
+  overflow-wrap: anywhere;
+}
+.discover-recovery:focus {
+  outline: 2px solid #31543c;
+  outline-offset: 3px;
+}
+.discover-recovery p {
+  font-size: 13px;
+  line-height: 1.7;
+  margin: 10px 0 16px;
+}
 .discover-categories {
   display: flex;
   flex-wrap: wrap;
