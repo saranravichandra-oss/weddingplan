@@ -2438,6 +2438,92 @@ test("parallel guest responses merge per celebration with explicit choices for t
   }
 });
 
+test("a response from the old session cannot close a renewed password session but a current 401 still signs out", async ({
+  page,
+}) => {
+  await login(page);
+  await section(page, "Gemeinsam");
+  let capture!: () => void;
+  let release!: () => void;
+  const captured = new Promise<void>((resolve) => {
+    capture = resolve;
+  });
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let held = false;
+  await page.route("**/api/state", async (route) => {
+    if (held) return route.continue();
+    held = true;
+    capture();
+    await gate;
+    await route.fulfill({
+      status: 401,
+      json: { error: "Vorherige Sitzung abgelaufen" },
+      headers: { "x-synthetic-old-session": "yes" },
+    });
+  });
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await captured;
+  const temporary = "TemporaryBrowserSession2027";
+  await page.getByLabel("Bisheriges Passwort", { exact: true }).fill(password);
+  await page.getByLabel("Neues Passwort", { exact: true }).fill(temporary);
+  const changed = page.waitForResponse(
+    (value) =>
+      value.url().endsWith("/api/auth/password") &&
+      value.request().method() === "POST",
+  );
+  await page
+    .getByRole("button", { name: "Passwort ändern", exact: true })
+    .click();
+  const changedResponse = await changed;
+  expect(changedResponse.ok()).toBeTruthy();
+  const renewed = await changedResponse.json();
+  try {
+    await expect(
+      page.getByText(/Passwort geändert\. Andere Sitzungen/),
+    ).toBeVisible();
+    const late = page.waitForResponse(
+      (value) => value.headers()["x-synthetic-old-session"] === "yes",
+    );
+    release();
+    await (await late).finished();
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+        ),
+    );
+    expect(
+      await page
+        .getByRole("navigation", { name: "Hauptnavigation" })
+        .isVisible(),
+    ).toBe(true);
+    expect(await page.getByText(/Keine Verbindung:/).count()).toBe(0);
+  } finally {
+    release();
+    const restored = await page.request.post("/api/auth/password", {
+      headers: { "X-CSRF-Token": renewed.csrf },
+      data: { current: temporary, password },
+    });
+    expect(restored.ok()).toBeTruthy();
+  }
+  await page.unroute("**/api/state");
+  await page.route("**/api/state", (route) =>
+    route.fulfill({
+      status: 401,
+      json: { error: "Aktuelle Sitzung abgelaufen" },
+    }),
+  );
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect(
+    page.getByRole("textbox", { name: "E-Mail als Anmeldename" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("navigation", { name: "Hauptnavigation" }),
+  ).toHaveCount(0);
+});
+
 test("late background responses never replace newer planning or newer connection errors", async ({
   page,
 }) => {

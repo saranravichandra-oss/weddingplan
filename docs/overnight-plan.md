@@ -89,7 +89,7 @@ Jede abgeschlossene Änderung passend testen, korrigieren, committen/pushen und 
 
 ## Prüfung und Deployment: wichtige Schutzregeln
 
-- `npm test` baut die lokale Version und verwendet isolierte Testdatenbanken. Zuletzt bestanden 36 Node-Tests und anschließend 29 Browserabläufe. Die neue SQL-Prüfung läuft ausschließlich lokal in PGlite, nicht in Supabase. Wiederverwendete synthetische Browser-Testsitzungen bleiben ausschließlich im Arbeitsspeicher des Testworkers; ungültige Sitzungen melden sich erneut über die echte Anmeldemaske an.
+- `npm test` baut die lokale Version und verwendet isolierte Testdatenbanken. Die zuletzt tatsächlich bestandenen Testzahlen stehen im aktuellen Stand oben und in den jeweiligen Arbeitsabschnitten. Die SQL-Prüfung läuft ausschließlich lokal in PGlite, nicht in Supabase. Wiederverwendete synthetische Browser-Testsitzungen bleiben ausschließlich im Arbeitsspeicher des Testworkers; ungültige Sitzungen melden sich erneut über die echte Anmeldemaske an.
 - `npm run build:cloud` schreibt nach `dist-cloud`; `npm run build` nach `dist`. Niemals die lokale SQLite-App mit einem Cloud-Build in `dist` ersetzen.
 - **`tests/cloud/app.spec.ts` keinesfalls gegen die echte Produktion ausführen.** Diese Suite erwartet absichtlich eine leere synthetische Datenbank aus der Zeit vor der Migration. Echte Daten dürfen niemals für Fixture-Tests gelöscht werden.
 - Cloud-Änderungen möglichst mit einem lokalen Testadapter und isolierter Datenbank prüfen. Produktive Smoke-Tests sind lesend bzw. anonym; für zusätzliche Tests keine Testkonten dauerhaft in der echten Planung hinterlassen.

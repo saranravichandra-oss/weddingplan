@@ -37,6 +37,7 @@ import type { Icon } from "@phosphor-icons/react";
 import {
   api,
   ApiError,
+  currentSessionVersion,
   deleteRecord,
   getState,
   json,
@@ -236,13 +237,16 @@ function PlanningApp({
   }, []);
   const refresh = useCallback(async () => {
     const run = ++refreshRun.current;
+    const session = currentSessionVersion();
     try {
       const data = await getState();
-      if (run !== refreshRun.current) return;
+      if (run !== refreshRun.current || session !== currentSessionVersion())
+        return;
       setState(data);
       setConnectionError("");
     } catch (error) {
-      if (run !== refreshRun.current) return;
+      if (run !== refreshRun.current || session !== currentSessionVersion())
+        return;
       setConnectionError((error as Error).message);
     }
   }, []);

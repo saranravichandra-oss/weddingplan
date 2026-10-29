@@ -20,6 +20,8 @@ Anmeldung mit dem bestehenden Konto, Einladung des zweiten Zugangs unter **Gemei
 
 Die Planung wird außerdem beim Zurückwechseln in den Tab aktualisiert. Verspätete Antworten eines früheren Abgleichs ersetzen weder eine frisch geladene Fassung noch einen aktuelleren Verbindungshinweis. Bei einem Fehler bleiben die bereits angezeigten Daten erhalten; „Erneut verbinden“ lädt den gemeinsamen Stand wieder.
 
+Nach einem erfolgreichen Passwortwechsel werden verspätete Antworten der vorherigen Sitzung nicht mehr auf die erneuerte Anmeldung angewandt. Wird die aktuelle Sitzung vom Server abgewiesen, führt die App weiterhin zur Anmeldung zurück. Die serverseitige Sitzungs- und CSRF-Prüfung bleibt bei jeder Anfrage maßgeblich.
+
 Die Bereitstellung benötigt Vercel **Hobby** und Supabase **Free**, ohne Upgrade oder kostenpflichtige Zusatzdienste. Die App begrenzt Dokumente auf 750 MB insgesamt und 15 MB pro Datei. Anbieterlimits gelten zusätzlich; kostenlose Projekte können bei Inaktivität pausieren oder beim Erreichen von Freigrenzen eingeschränkt werden. Es wird keine unbegrenzte Verfügbarkeit zugesichert. Exporte und Originale regelmäßig privat sichern.
 
 `npm run build:cloud` baut nach `dist-cloud`, der lokale Build bleibt in `dist`. Vercel erhält nur `WEDDING_BACKEND_URL` und den öffentlichen `WEDDING_BACKEND_PUBLIC_KEY`. Der Supabase-Administrationsschlüssel bleibt ausschließlich in der Edge-Runtime. Alle Anwendungstabellen haben RLS, direkten anonymen Zugriff und öffentliche Originale gibt es nicht. Produktionsadressen werden in `wedding_config.allowed_origins` ausdrücklich freigegeben.

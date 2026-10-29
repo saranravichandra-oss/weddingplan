@@ -1,8 +1,11 @@
 import type { AppState, Kind, Stored, User } from "./data";
 let csrf = "";
+let sessionVersion = 0;
 export function setCsrf(value: string) {
   csrf = value;
+  ++sessionVersion;
 }
+export const currentSessionVersion = () => sessionVersion;
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -15,6 +18,7 @@ export async function api<T>(
   path: string,
   options: RequestInit = {},
 ): Promise<T> {
+  const startedSession = sessionVersion;
   const form = options.body instanceof FormData;
   const response = await fetch("/api" + path, {
     ...options,
@@ -27,7 +31,11 @@ export async function api<T>(
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
-    if (response.status === 401 && !path.startsWith("/auth/"))
+    if (
+      response.status === 401 &&
+      !path.startsWith("/auth/") &&
+      startedSession === sessionVersion
+    )
       window.dispatchEvent(new Event("session-expired"));
     throw new ApiError(
       [
