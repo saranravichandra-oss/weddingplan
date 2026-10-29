@@ -1,19 +1,38 @@
 import { test, expect } from "@playwright/test";
-import type { Page } from "@playwright/test";
+import type { BrowserContext, Page } from "@playwright/test";
 import { offerImage } from "./fixtures.mjs";
 import { guestWorkbook } from "./guest-workbook.mjs";
 const email = "browser-one@example.test";
 const password = "OnlyForBrowserFixtures2027";
+// In-memory synthetic sessions keep non-auth UI tests below the real login rate limit.
+// Invalidated sessions still go through the actual sign-in form again.
+const fixtureCookies = new Map<
+  string,
+  Awaited<ReturnType<BrowserContext["cookies"]>>
+>();
 async function login(page: Page, asPartner = false) {
+  const account = asPartner ? "browser-two@example.test" : email;
+  const cookies = fixtureCookies.get(account);
+  if (cookies) await page.context().addCookies(cookies);
+  else await page.context().clearCookies();
   await page.goto("/");
+  const session = await page.request.get("/api/auth/me");
+  if (session.ok()) {
+    expect((await session.json()).user.email).toBe(account);
+    await expect(
+      page.getByRole("navigation", { name: "Hauptnavigation" }),
+    ).toBeVisible();
+    return;
+  }
   await page
     .getByRole("textbox", { name: "E-Mail als Anmeldename" })
-    .fill(asPartner ? "browser-two@example.test" : email);
+    .fill(account);
   await page.getByLabel("Passwort", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Anmelden", exact: true }).click();
   await expect(
     page.getByRole("navigation", { name: "Hauptnavigation" }),
   ).toBeVisible();
+  fixtureCookies.set(account, await page.context().cookies());
 }
 async function section(page: Page, name: string) {
   await page
@@ -1107,6 +1126,317 @@ test("per-person quotes retain their pricing unit and never invent a total from 
   expect(offer.price).toBeNull();
   expect(offer.pricingNotes).toContain("Preis pro Person");
   expect(offer.evidence.pricingNotes[0].page).toBe(1);
+});
+
+test("account connection retries recover an invitation form and a failed invitation keeps entered values", async ({
+  page,
+}) => {
+  await page.route(
+    "**/api/auth/status",
+    (route) =>
+      route.fulfill({
+        status: 503,
+        contentType: "application/json",
+        body: JSON.stringify({ error: "Synthetic connection failure" }),
+      }),
+    { times: 1 },
+  );
+  await page.goto(
+    "/?bereich=gaeste#invite=" + "synthetic-invalid-invitation-".repeat(2),
+  );
+  await expect(page.getByRole("alert")).toContainText("nicht erreichbar");
+  await expect(
+    page.getByRole("button", { name: "Einladung annehmen", exact: true }),
+  ).toBeDisabled();
+  await page
+    .getByRole("button", { name: "Verbindung erneut prüfen", exact: true })
+    .click();
+  await expect(
+    page.getByRole("button", { name: "Einladung annehmen", exact: true }),
+  ).toBeEnabled();
+  await page
+    .getByRole("textbox", { name: "Dein Name", exact: true })
+    .fill("Synthetischer Gastzugang");
+  await page
+    .getByRole("textbox", { name: "E-Mail als Anmeldename", exact: true })
+    .fill("not-a-third-account@example.test");
+  await page.getByLabel("Passwort").fill(password);
+  await page
+    .getByRole("button", { name: "Einladung annehmen", exact: true })
+    .click();
+  await expect(page.getByRole("alert")).toContainText("Einladung ungültig");
+  await expect(
+    page.getByRole("textbox", { name: "Dein Name", exact: true }),
+  ).toHaveValue("Synthetischer Gastzugang");
+  await expect(
+    page.getByRole("textbox", { name: "E-Mail als Anmeldename", exact: true }),
+  ).toHaveValue("not-a-third-account@example.test");
+  await page
+    .getByRole("button", { name: "Ich habe bereits einen Zugang", exact: true })
+    .click();
+  await page
+    .getByRole("textbox", { name: "E-Mail als Anmeldename", exact: true })
+    .fill(email);
+  let release!: () => void;
+  const waiting = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route("**/api/auth/login", async (route) => {
+    await waiting;
+    await route.continue();
+  });
+  try {
+    await page.getByRole("button", { name: "Anmelden", exact: true }).click();
+    await expect(
+      page.getByRole("button", {
+        name: "Ich habe einen Einladungscode",
+        exact: true,
+      }),
+    ).toBeDisabled();
+    await expect(
+      page.getByRole("textbox", {
+        name: "E-Mail als Anmeldename",
+        exact: true,
+      }),
+    ).toBeDisabled();
+    await expect(page.getByLabel("Passwort", { exact: true })).toBeDisabled();
+  } finally {
+    release();
+  }
+  await expect(
+    page.getByRole("navigation", { name: "Hauptnavigation" }),
+  ).toBeVisible();
+  await expect(page).toHaveURL(/\?bereich=gaeste$/);
+  const state = await (await page.request.get("/api/state")).json();
+  expect(state.members).toHaveLength(2);
+});
+
+test("invitation creation and revocation show recoverable errors without concurrent requests or stale codes", async ({
+  page,
+}, testInfo) => {
+  await page.addInitScript(() =>
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: {
+        writeText: async () => {
+          throw new Error("Synthetic unavailable clipboard");
+        },
+      },
+    }),
+  );
+  await login(page);
+  // Only this local browser view has one member; no live fixture account is deleted.
+  await page.route("**/api/state", async (route) => {
+    const response = await route.fetch();
+    const state = await response.json();
+    await route.fulfill({
+      response,
+      json: {
+        ...state,
+        members: state.members.filter(
+          (member: { email: string }) => member.email === email,
+        ),
+      },
+    });
+  });
+  let release!: () => void;
+  const waiting = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let creates = 0,
+    revokes = 0;
+  await page.route("**/api/invitations", async (route) => {
+    if (route.request().method() === "POST") {
+      creates++;
+      if (creates === 1) await waiting;
+      if (creates === 2)
+        return route.fulfill({
+          status: 503,
+          json: { error: "Synthetic invitation generation failure" },
+        });
+      return route.fulfill({
+        json: {
+          invitation: `synthetic-code-${creates}-`.repeat(4),
+          expires: Date.now() + (creates === 4 ? -1000 : 48 * 60 * 60 * 1000),
+        },
+      });
+    }
+    revokes++;
+    await route.fulfill({
+      status: revokes === 1 ? 503 : 200,
+      json:
+        revokes === 1 ? { error: "Synthetic revoke failure" } : { ok: true },
+    });
+  });
+  await page.reload();
+  await section(page, "Gemeinsam");
+  const card = page.locator(".team-card").filter({
+    has: page.getByRole("heading", { name: "Eure Zugänge", exact: true }),
+  });
+  await page.setViewportSize({ width: 320, height: 900 });
+  try {
+    await card
+      .getByRole("button", { name: "Zweiten Zugang einladen", exact: true })
+      .click();
+    const pending = card.getByRole("button", {
+      name: "Einladung wird erstellt …",
+      exact: true,
+    });
+    await expect(pending).toBeDisabled();
+    expect(
+      await pending.evaluate(
+        (button) => button.scrollWidth <= button.clientWidth + 1,
+      ),
+    ).toBeTruthy();
+    await pending.evaluate((button: HTMLButtonElement) => button.click());
+    await expect(
+      page.getByRole("button", { name: "Passwort ändern", exact: true }),
+    ).toBeDisabled();
+    expect(creates).toBe(1);
+  } finally {
+    release();
+  }
+  await expect(card.getByLabel("Einladungscode", { exact: true })).toHaveValue(
+    "synthetic-code-1-".repeat(4),
+  );
+  await card
+    .getByRole("button", { name: "Code kopieren", exact: true })
+    .click();
+  await expect(card.getByRole("status")).toContainText(
+    "markieren und kopieren",
+  );
+  await card
+    .getByRole("button", { name: "Zweiten Zugang einladen", exact: true })
+    .click();
+  await expect(card.getByRole("alert")).toContainText(
+    "Synthetic invitation generation failure",
+  );
+  await expect(card.getByLabel("Einladungscode", { exact: true })).toHaveCount(
+    0,
+  );
+  await card
+    .getByRole("button", { name: "Zweiten Zugang einladen", exact: true })
+    .click();
+  await expect(card.getByLabel("Einladungscode", { exact: true })).toHaveValue(
+    "synthetic-code-3-".repeat(4),
+  );
+  await card
+    .getByRole("button", { name: "Einladung widerrufen", exact: true })
+    .click();
+  await expect(card.getByRole("alert")).toContainText(
+    "Widerruf konnte nicht bestätigt werden",
+  );
+  await expect(
+    card.getByRole("button", { name: "Code kopieren", exact: true }),
+  ).toBeDisabled();
+  await card.screenshot({
+    path: testInfo.outputPath("invitation-retry-320.png"),
+  });
+  await expect(card.getByLabel("Einladungscode", { exact: true })).toHaveValue(
+    "synthetic-code-3-".repeat(4),
+  );
+  await card
+    .getByRole("button", { name: "Einladung widerrufen", exact: true })
+    .click();
+  await expect(card.getByRole("status")).toContainText("Einladung widerrufen");
+  await expect(card.getByLabel("Einladungscode", { exact: true })).toHaveCount(
+    0,
+  );
+  await card
+    .getByRole("button", { name: "Zweiten Zugang einladen", exact: true })
+    .click();
+  await expect(card.getByRole("alert")).toContainText("Code ist abgelaufen");
+  await expect(
+    card.getByRole("button", { name: "Code kopieren", exact: true }),
+  ).toBeDisabled();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBeTruthy();
+  expect(creates).toBe(4);
+  expect(revokes).toBe(2);
+  await page.unroute("**/api/state");
+  expect(
+    (await (await page.request.get("/api/state")).json()).members,
+  ).toHaveLength(2);
+});
+
+test("password changes lock account controls, retain failed input, and clear confirmed input", async ({
+  page,
+}) => {
+  await login(page);
+  const auth = await (await page.request.get("/api/auth/me")).json();
+  await section(page, "Gemeinsam");
+  const card = page.locator(".team-card").filter({
+    has: page.getByRole("heading", {
+      name: "Dein Passwort ändern",
+      exact: true,
+    }),
+  });
+  await card
+    .getByLabel("Bisheriges Passwort", { exact: true })
+    .fill("Synthetic current password");
+  await card
+    .getByLabel("Neues Passwort", { exact: true })
+    .fill("Synthetic replacement password");
+  let release!: () => void;
+  const waiting = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let calls = 0;
+  // Isolate UI request/error behavior; real fixture passwords remain unchanged.
+  await page.route("**/api/auth/password", async (route) => {
+    calls++;
+    if (calls === 1) {
+      await waiting;
+      return route.fulfill({
+        status: 503,
+        json: { error: "Synthetic password change failure" },
+      });
+    }
+    await route.fulfill({ json: auth });
+  });
+  try {
+    await card
+      .getByRole("button", { name: "Passwort ändern", exact: true })
+      .click();
+    const pending = card.getByRole("button", {
+      name: "Passwort wird geändert …",
+      exact: true,
+    });
+    await expect(pending).toBeDisabled();
+    await pending.evaluate((button: HTMLButtonElement) => button.click());
+    await expect(
+      card.getByLabel("Neues Passwort", { exact: true }),
+    ).toBeDisabled();
+    await expect(
+      card.getByRole("button", { name: "Abmelden", exact: true }),
+    ).toBeDisabled();
+    expect(calls).toBe(1);
+  } finally {
+    release();
+  }
+  await expect(card.getByRole("alert")).toContainText(
+    "Synthetic password change failure",
+  );
+  await expect(card.getByLabel("Neues Passwort", { exact: true })).toHaveValue(
+    "Synthetic replacement password",
+  );
+  await card
+    .getByRole("button", { name: "Passwort ändern", exact: true })
+    .click();
+  await expect(card.getByRole("status")).toContainText("Passwort geändert");
+  await expect(card.getByLabel("Neues Passwort", { exact: true })).toHaveValue(
+    "",
+  );
+  await expect(
+    card.getByLabel("Bisheriges Passwort", { exact: true }),
+  ).toHaveValue("");
+  await expect(
+    card.getByRole("button", { name: "Abmelden", exact: true }),
+  ).toBeEnabled();
+  expect(calls).toBe(2);
 });
 
 test("failed sign out stays visible and can be retried safely on a narrow phone", async ({

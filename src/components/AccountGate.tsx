@@ -18,19 +18,28 @@ export default function AccountGate({
   const [joining, setJoining] = useState(!!invitation);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  useEffect(() => {
-    api<{ setupRequired: boolean; canSetup: boolean }>("/auth/status")
-      .then((data) => {
-        setSetup(data.setupRequired);
-        setCanSetup(data.canSetup);
-      })
-      .catch(() =>
-        setError(
-          cloudMode
-            ? "Die Datenverbindung ist gerade nicht erreichbar. Bitte später erneut versuchen."
-            : "Der lokale Server ist nicht erreichbar. Bitte die App auf dem Hauptrechner starten.",
-        ),
+  const [checking, setChecking] = useState(false);
+  async function checkStatus() {
+    setChecking(true);
+    setError("");
+    try {
+      const data = await api<{ setupRequired: boolean; canSetup: boolean }>(
+        "/auth/status",
       );
+      setSetup(data.setupRequired);
+      setCanSetup(data.canSetup);
+    } catch {
+      setError(
+        cloudMode
+          ? "Die Datenverbindung ist gerade nicht erreichbar. Bitte erneut prüfen."
+          : "Der lokale Server ist nicht erreichbar. Bitte die App auf dem Hauptrechner starten und erneut prüfen.",
+      );
+    } finally {
+      setChecking(false);
+    }
+  }
+  useEffect(() => {
+    void checkStatus();
   }, []);
   return (
     <div className="account-page">
@@ -57,6 +66,7 @@ export default function AccountGate({
           className="form-stack"
           onSubmit={async (e) => {
             e.preventDefault();
+            if (busy || setup === null) return;
             setError("");
             setBusy(true);
             const data = Object.fromEntries(new FormData(e.currentTarget));
@@ -82,13 +92,20 @@ export default function AccountGate({
           {(setup || joining) && (
             <label>
               Dein Name
-              <input name="name" required maxLength={200} autoComplete="name" />
+              <input
+                name="name"
+                disabled={busy || setup === null}
+                required
+                maxLength={200}
+                autoComplete="name"
+              />
             </label>
           )}
           <label>
             E-Mail als Anmeldename
             <input
               name="email"
+              disabled={busy || setup === null}
               required
               type="email"
               autoComplete="username"
@@ -99,6 +116,7 @@ export default function AccountGate({
             Passwort
             <input
               name="password"
+              disabled={busy || setup === null}
               required
               type="password"
               minLength={setup || joining ? 12 : 1}
@@ -118,6 +136,7 @@ export default function AccountGate({
               Einladungscode
               <input
                 required
+                disabled={busy || setup === null}
                 value={invitation}
                 onChange={(e) => setInvitation(e.target.value.trim())}
                 autoComplete="off"
@@ -125,6 +144,14 @@ export default function AccountGate({
             </label>
           )}
           <ErrorMessage message={error} />
+          {setup === null &&
+            (checking ? (
+              <p role="status">Verbindung wird geprüft …</p>
+            ) : (
+              <Button secondary onClick={() => void checkStatus()}>
+                Verbindung erneut prüfen
+              </Button>
+            ))}
           {setup && !canSetup && (
             <ErrorMessage message="Der erste Zugang muss direkt auf dem Hauptrechner unter http://127.0.0.1:5173 eingerichtet werden." />
           )}
@@ -144,6 +171,7 @@ export default function AccountGate({
         {!setup && (
           <button
             className="text-button"
+            disabled={busy || setup === null}
             onClick={() => {
               setJoining(!joining);
               setError("");

@@ -23,8 +23,54 @@ export default function Team({
 }) {
   const [invite, setInvite] = useState("");
   const [expires, setExpires] = useState(0);
-  const [error, setError] = useState("");
-  const [message, setMessage] = useState("");
+  const [inviteError, setInviteError] = useState("");
+  const [inviteMessage, setInviteMessage] = useState("");
+  const [inviteUncertain, setInviteUncertain] = useState(false);
+  const [inviteBusy, setInviteBusy] = useState<"" | "create" | "revoke">("");
+  const [passwordError, setPasswordError] = useState("");
+  const [passwordMessage, setPasswordMessage] = useState("");
+  const [passwordBusy, setPasswordBusy] = useState(false);
+  const accountBusy = !!inviteBusy || passwordBusy;
+  const inviteExpired = !!invite && expires <= Date.now();
+  async function createInvitation() {
+    if (accountBusy) return;
+    setInviteBusy("create");
+    setInviteError("");
+    setInviteMessage("");
+    setInviteUncertain(false);
+    setInvite("");
+    try {
+      const data = await api<{ invitation: string; expires: number }>(
+        "/invitations",
+        { method: "POST" },
+      );
+      setInvite(data.invitation);
+      setExpires(data.expires);
+    } catch (error) {
+      setInviteError((error as Error).message);
+    } finally {
+      setInviteBusy("");
+    }
+  }
+  async function revokeInvitation() {
+    if (accountBusy) return;
+    setInviteBusy("revoke");
+    setInviteError("");
+    setInviteMessage("");
+    try {
+      await api("/invitations", { method: "DELETE" });
+      setInvite("");
+      setInviteUncertain(false);
+      setInviteMessage("Einladung widerrufen.");
+    } catch {
+      setInviteUncertain(true);
+      setInviteError(
+        "Widerruf konnte nicht bestätigt werden. Bitte erneut versuchen.",
+      );
+    } finally {
+      setInviteBusy("");
+    }
+  }
   return (
     <>
       <Title
@@ -57,21 +103,13 @@ export default function Team({
                 Er gilt 48 Stunden. Ein neuer Code ersetzt den bisherigen.
               </p>
               <Button
-                onClick={async () => {
-                  setError("");
-                  try {
-                    const data = await api<{
-                      invitation: string;
-                      expires: number;
-                    }>("/invitations", { method: "POST" });
-                    setInvite(data.invitation);
-                    setExpires(data.expires);
-                  } catch (error) {
-                    setError((error as Error).message);
-                  }
-                }}
+                disabled={accountBusy}
+                onClick={() => void createInvitation()}
               >
-                <Users size={17} /> Zweiten Zugang einladen
+                <Users size={17} />{" "}
+                {inviteBusy === "create"
+                  ? "Einladung wird erstellt …"
+                  : "Zweiten Zugang einladen"}
               </Button>
               {invite && (
                 <div className="invitation-box">
@@ -80,6 +118,7 @@ export default function Team({
                     <input
                       value={invite}
                       readOnly
+                      disabled={accountBusy || inviteExpired || inviteUncertain}
                       onFocus={(e) => e.target.select()}
                     />
                   </label>
@@ -87,14 +126,18 @@ export default function Team({
                     Gültig bis {new Date(expires).toLocaleString("de-DE")}. Nur
                     persönlich weitergeben.
                   </small>
+                  {inviteExpired && (
+                    <ErrorMessage message="Dieser Code ist abgelaufen. Erstelle einen neuen Einladungscode." />
+                  )}
                   <Button
                     secondary
+                    disabled={accountBusy || inviteExpired || inviteUncertain}
                     onClick={async () => {
                       try {
                         await navigator.clipboard.writeText(invite);
-                        setMessage("Code kopiert.");
+                        setInviteMessage("Code kopiert.");
                       } catch {
-                        setMessage(
+                        setInviteMessage(
                           "Bitte den Code im Feld markieren und kopieren.",
                         );
                       }
@@ -105,6 +148,7 @@ export default function Team({
                   {cloudMode && (
                     <Button
                       secondary
+                      disabled={accountBusy || inviteExpired || inviteUncertain}
                       onClick={async () => {
                         const link =
                           state.network[0] +
@@ -112,9 +156,9 @@ export default function Team({
                           encodeURIComponent(invite);
                         try {
                           await navigator.clipboard.writeText(link);
-                          setMessage("Einladungslink kopiert.");
+                          setInviteMessage("Einladungslink kopiert.");
                         } catch {
-                          setMessage(
+                          setInviteMessage(
                             "Bitte die App-Adresse und den Code persönlich weitergeben.",
                           );
                         }
@@ -125,18 +169,24 @@ export default function Team({
                   )}
                   <button
                     className="text-button"
-                    onClick={async () => {
-                      await api("/invitations", { method: "DELETE" });
-                      setInvite("");
-                    }}
+                    disabled={accountBusy}
+                    onClick={() => void revokeInvitation()}
                   >
-                    Einladung widerrufen
+                    {inviteBusy === "revoke"
+                      ? "Wird widerrufen …"
+                      : "Einladung widerrufen"}
                   </button>
                 </div>
               )}
             </>
           ) : (
             <Badge tone="success">Beide Zugänge sind eingerichtet</Badge>
+          )}
+          <ErrorMessage message={inviteError} />
+          {inviteMessage && (
+            <p role="status" className="inline-note">
+              {inviteMessage}
+            </p>
           )}
         </section>
         <section className="panel team-card">
@@ -197,9 +247,12 @@ export default function Team({
             className="form-stack"
             onSubmit={async (e) => {
               e.preventDefault();
+              if (accountBusy) return;
               const form = e.currentTarget;
               const values = Object.fromEntries(new FormData(form));
-              setError("");
+              setPasswordError("");
+              setPasswordMessage("");
+              setPasswordBusy(true);
               try {
                 const data = await api<Auth>("/auth/password", {
                   method: "POST",
@@ -207,11 +260,13 @@ export default function Team({
                 });
                 setCsrf(data.csrf);
                 form.reset();
-                setMessage(
+                setPasswordMessage(
                   "Passwort geändert. Andere Sitzungen dieses Kontos wurden abgemeldet.",
                 );
               } catch (error) {
-                setError((error as Error).message);
+                setPasswordError((error as Error).message);
+              } finally {
+                setPasswordBusy(false);
               }
             }}
           >
@@ -219,6 +274,7 @@ export default function Team({
               Bisheriges Passwort
               <input
                 name="current"
+                disabled={accountBusy}
                 type="password"
                 required
                 autoComplete="current-password"
@@ -228,6 +284,7 @@ export default function Team({
               Neues Passwort
               <input
                 name="password"
+                disabled={accountBusy}
                 type="password"
                 minLength={12}
                 maxLength={200}
@@ -235,21 +292,22 @@ export default function Team({
                 autoComplete="new-password"
               />
             </label>
-            <Button type="submit">
-              <LockKey size={17} /> Passwort ändern
+            <ErrorMessage message={passwordError} />
+            {passwordMessage && (
+              <p role="status" className="inline-note">
+                {passwordMessage}
+              </p>
+            )}
+            <Button type="submit" disabled={accountBusy}>
+              <LockKey size={17} />{" "}
+              {passwordBusy ? "Passwort wird geändert …" : "Passwort ändern"}
             </Button>
           </form>
-          <Button secondary onClick={logout}>
+          <Button secondary onClick={logout} disabled={accountBusy}>
             <SignOut size={17} /> Abmelden
           </Button>
         </section>
       </div>
-      <ErrorMessage message={error} />
-      {message && (
-        <p role="status" className="inline-note">
-          {message}
-        </p>
-      )}
     </>
   );
 }
