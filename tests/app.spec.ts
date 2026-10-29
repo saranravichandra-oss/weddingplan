@@ -1458,6 +1458,329 @@ test("renaming a celebration retains shared associations, guest responses and co
   }
 });
 
+test("planning edits resolve real parallel writes without losing either account and detect another race", async ({
+  page,
+  browser,
+}, testInfo) => {
+  test.setTimeout(60000);
+  await login(page);
+  const auth = await (await page.request.get("/api/auth/me")).json();
+  const created = await page.request.post("/api/records/tasks", {
+    headers: { "X-CSRF-Token": auth.csrf },
+    data: {
+      title: "Gemeinsame Testaufgabe",
+      detail: "Ausgangsstand",
+      priority: "Normal",
+      done: false,
+    },
+  });
+  expect(created.ok()).toBeTruthy();
+  const original = await created.json();
+  await section(page, "Aufgaben");
+  await page
+    .getByRole("button", {
+      name: "Gemeinsame Testaufgabe bearbeiten",
+      exact: true,
+    })
+    .click();
+  const editor = page.getByRole("dialog");
+  await editor
+    .getByRole("textbox", { name: "Aufgabe", exact: true })
+    .fill("Mein Aufgabentitel");
+  await editor
+    .getByRole("textbox", { name: "Beschreibung", exact: true })
+    .fill("Meine neue Beschreibung");
+  const partnerContext = await browser.newContext();
+  try {
+    const partner = await partnerContext.newPage();
+    await login(partner, true);
+    const partnerAuth = await (
+      await partner.request.get("/api/auth/me")
+    ).json();
+    const remote = await partner.request.put(
+      `/api/records/tasks/${original.id}`,
+      {
+        headers: { "X-CSRF-Token": partnerAuth.csrf },
+        data: {
+          ...original,
+          title: "Gemeinsamer Aufgabentitel",
+          priority: "Hoch",
+          done: true,
+        },
+      },
+    );
+    expect(remote.ok()).toBeTruthy();
+    let shared = await remote.json();
+    await editor
+      .getByRole("button", { name: "Dauerhaft speichern", exact: true })
+      .click();
+    const conflicts = editor.getByRole("region", {
+      name: "Gemeinsame Änderungen prüfen",
+    });
+    await expect(conflicts).toBeVisible();
+    await expect(conflicts).toBeFocused();
+    await expect(
+      editor.getByRole("textbox", { name: "Aufgabe", exact: true }),
+    ).toBeDisabled();
+    const apply = conflicts.getByRole("button", {
+      name: "Zusammengeführte Fassung prüfen",
+      exact: true,
+    });
+    await expect(apply).toBeDisabled();
+    await conflicts
+      .getByRole("group", { name: "Aufgabe", exact: true })
+      .getByRole("radio", { name: /Meine Eingabe/ })
+      .check();
+    await page.setViewportSize({ width: 320, height: 900 });
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBeTruthy();
+    expect(
+      await apply.evaluate(
+        (button) => button.scrollWidth <= button.clientWidth + 1,
+      ),
+    ).toBeTruthy();
+    await conflicts.screenshot({
+      path: testInfo.outputPath("planning-conflict-320.png"),
+    });
+    await apply.click();
+    await expect(conflicts).toHaveCount(0);
+    await expect(
+      editor.getByRole("textbox", { name: "Aufgabe", exact: true }),
+    ).toBeFocused();
+    await expect(
+      editor.getByRole("textbox", { name: "Aufgabe", exact: true }),
+    ).toHaveValue("Mein Aufgabentitel");
+    await expect(
+      editor.getByRole("textbox", { name: "Beschreibung", exact: true }),
+    ).toHaveValue("Meine neue Beschreibung");
+    await expect(editor.getByLabel("Priorität")).toHaveValue("Hoch");
+    let state = await (await page.request.get("/api/state")).json();
+    expect(
+      state.tasks.find((row: { id: string }) => row.id === original.id).title,
+    ).toBe("Gemeinsamer Aufgabentitel");
+    page.once("dialog", (prompt) => void prompt.dismiss());
+    await page.keyboard.press("Escape");
+    await expect(editor).toBeVisible();
+    const second = await partner.request.put(
+      `/api/records/tasks/${original.id}`,
+      {
+        headers: { "X-CSRF-Token": partnerAuth.csrf },
+        data: { ...shared, title: "Noch neuerer gemeinsamer Titel" },
+      },
+    );
+    expect(second.ok()).toBeTruthy();
+    shared = await second.json();
+    await editor
+      .getByRole("button", { name: "Dauerhaft speichern", exact: true })
+      .click();
+    await expect(conflicts).toContainText("Noch neuerer gemeinsamer Titel");
+    await conflicts
+      .getByRole("group", { name: "Aufgabe", exact: true })
+      .getByRole("radio", { name: /Meine Eingabe/ })
+      .check();
+    await apply.click();
+    await editor
+      .getByRole("button", { name: "Dauerhaft speichern", exact: true })
+      .click();
+    await expect(editor).toHaveCount(0);
+    state = await (await page.request.get("/api/state")).json();
+    const result = state.tasks.find(
+      (row: { id: string }) => row.id === original.id,
+    );
+    expect(result.title).toBe("Mein Aufgabentitel");
+    expect(result.detail).toBe("Meine neue Beschreibung");
+    expect(result.priority).toBe("Hoch");
+    expect(result.done).toBe(true);
+    expect(result.version).toBe(shared.version + 1);
+  } finally {
+    await partnerContext.close();
+  }
+});
+
+test("parallel guest responses merge per celebration with explicit choices for the same response", async ({
+  page,
+  browser,
+}) => {
+  test.setTimeout(60000);
+  await login(page);
+  const auth = await (await page.request.get("/api/auth/me")).json();
+  const before = await (await page.request.get("/api/state")).json();
+  const [first, second, third] = before.events;
+  const created = await page.request.post("/api/records/guests", {
+    headers: { "X-CSRF-Token": auth.csrf },
+    data: {
+      name: "Parallel Testfamilie",
+      partySize: 3,
+      type: "Gruppe",
+      attendance: Object.fromEntries(
+        before.events.map((event: { id: string }) => [event.id, "Vorgesehen"]),
+      ),
+    },
+  });
+  expect(created.ok()).toBeTruthy();
+  const original = await created.json();
+  await section(page, "Gäste");
+  await page
+    .getByRole("button", {
+      name: "Parallel Testfamilie bearbeiten",
+      exact: true,
+    })
+    .click();
+  const editor = page.getByRole("dialog");
+  await editor
+    .getByLabel(`${first.name}: Einladung & Rückmeldung`)
+    .selectOption("Zugesagt");
+  await editor
+    .getByLabel(`${third.name}: Einladung & Rückmeldung`)
+    .selectOption("Zugesagt");
+  await editor.getByRole("spinbutton", { name: /^Anzahl Personen/ }).fill("5");
+  await editor
+    .getByRole("textbox", { name: "Essen & Unverträglichkeiten", exact: true })
+    .fill("Synthetische Essensnotiz");
+  const partnerContext = await browser.newContext();
+  try {
+    const partner = await partnerContext.newPage();
+    await login(partner, true);
+    const partnerAuth = await (
+      await partner.request.get("/api/auth/me")
+    ).json();
+    const updated = await partner.request.put(
+      `/api/records/guests/${original.id}`,
+      {
+        headers: { "X-CSRF-Token": partnerAuth.csrf },
+        data: {
+          ...original,
+          partySize: 4,
+          notes: "Gemeinsame Testnotiz",
+          attendance: {
+            ...original.attendance,
+            [second.id]: "Abgesagt",
+            [third.id]: "Abgesagt",
+          },
+        },
+      },
+    );
+    expect(updated.ok()).toBeTruthy();
+    const shared = await updated.json();
+    await editor
+      .getByRole("button", { name: "Dauerhaft speichern", exact: true })
+      .click();
+    const conflicts = editor.getByRole("region", {
+      name: "Gemeinsame Änderungen prüfen",
+    });
+    await expect(conflicts).toBeVisible();
+    await conflicts
+      .getByRole("button", {
+        name: "Eigene Eingaben weiter bearbeiten",
+        exact: true,
+      })
+      .click();
+    await expect(conflicts).toHaveCount(0);
+    await expect(
+      editor.getByRole("spinbutton", { name: /^Anzahl Personen/ }),
+    ).toHaveValue("5");
+    await expect(
+      editor.getByLabel(`${first.name}: Einladung & Rückmeldung`),
+    ).toHaveValue("Zugesagt");
+    await editor
+      .getByRole("button", { name: "Dauerhaft speichern", exact: true })
+      .click();
+    await expect(conflicts).toBeVisible();
+    await conflicts
+      .getByRole("group", { name: "Anzahl Personen", exact: true })
+      .getByRole("radio", { name: /Meine Eingabe/ })
+      .check();
+    await conflicts
+      .getByRole("group", {
+        name: `${third.name}: Einladung & Rückmeldung`,
+        exact: true,
+      })
+      .getByRole("radio", { name: /Gemeinsamer Stand/ })
+      .check();
+    await conflicts
+      .getByRole("button", {
+        name: "Zusammengeführte Fassung prüfen",
+        exact: true,
+      })
+      .click();
+    await expect(
+      editor.getByLabel(`${first.name}: Einladung & Rückmeldung`),
+    ).toHaveValue("Zugesagt");
+    await expect(
+      editor.getByLabel(`${second.name}: Einladung & Rückmeldung`),
+    ).toHaveValue("Abgesagt");
+    await expect(
+      editor.getByLabel(`${third.name}: Einladung & Rückmeldung`),
+    ).toHaveValue("Abgesagt");
+    await expect(
+      editor.getByRole("textbox", { name: "Weitere Hinweise", exact: true }),
+    ).toHaveValue("Gemeinsame Testnotiz");
+    expect(
+      (await (await page.request.get("/api/state")).json()).guests.find(
+        (row: { id: string }) => row.id === original.id,
+      ),
+    ).toEqual(shared);
+    await editor
+      .getByRole("button", { name: "Dauerhaft speichern", exact: true })
+      .click();
+    await expect(editor).toHaveCount(0);
+    const result = (
+      await (await page.request.get("/api/state")).json()
+    ).guests.find((row: { id: string }) => row.id === original.id);
+    expect(result.partySize).toBe(5);
+    expect(result.dietary).toBe("Synthetische Essensnotiz");
+    expect(result.notes).toBe("Gemeinsame Testnotiz");
+    expect(result.attendance).toEqual({
+      ...original.attendance,
+      [first.id]: "Zugesagt",
+      [second.id]: "Abgesagt",
+      [third.id]: "Abgesagt",
+    });
+    expect(result.version).toBe(shared.version + 1);
+    await page
+      .getByRole("button", {
+        name: "Parallel Testfamilie bearbeiten",
+        exact: true,
+      })
+      .click();
+    await editor
+      .getByRole("textbox", { name: "Weitere Hinweise", exact: true })
+      .fill("Lokale Eingabe nach gemeinsamer Löschung");
+    const removed = await partner.request.delete(
+      `/api/records/guests/${result.id}`,
+      {
+        headers: { "X-CSRF-Token": partnerAuth.csrf },
+        data: { version: result.version },
+      },
+    );
+    expect(removed.ok()).toBeTruthy();
+    await editor
+      .getByRole("button", { name: "Dauerhaft speichern", exact: true })
+      .click();
+    await expect(editor.getByRole("alert")).toContainText(
+      "inzwischen gelöscht",
+    );
+    await expect(
+      editor.getByRole("textbox", { name: "Weitere Hinweise", exact: true }),
+    ).toHaveValue("Lokale Eingabe nach gemeinsamer Löschung");
+    expect(
+      (await (await page.request.get("/api/state")).json()).guests.some(
+        (row: { id: string }) => row.id === result.id,
+      ),
+    ).toBe(false);
+    page.once("dialog", (prompt) => void prompt.accept());
+    await editor
+      .getByRole("button", { name: "Dialog schließen", exact: true })
+      .click();
+    await expect(editor).toHaveCount(0);
+  } finally {
+    await partnerContext.close();
+  }
+});
+
 test("unsaved planning edits survive canceled close and reload, and cannot be closed during a save", async ({
   page,
 }) => {

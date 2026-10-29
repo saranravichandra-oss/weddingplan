@@ -1,6 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
-import { saveRecord } from "../api";
+import { ApiError, getState, saveRecord } from "../api";
+import { mergeRecord, recordLabels } from "../record-conflicts";
+import type { PlanningRecord, RecordChoice } from "../record-conflicts";
 import { categories } from "../data";
 import type { AppState, Kind, Stored } from "../data";
 import { Button, ErrorMessage } from "./ui";
@@ -21,12 +23,49 @@ export default function RecordEditor({
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [displayRecord, setDisplayRecord] = useState(record);
+  const baseline = useRef(record);
+  const pendingBaseline = useRef<PlanningRecord | null>(null);
+  const [revision, setRevision] = useState(0);
+  const [conflict, setConflict] = useState<{
+    mine: PlanningRecord;
+    shared: PlanningRecord;
+  } | null>(null);
+  const [choices, setChoices] = useState<Record<string, RecordChoice>>({});
+  const locked = busy || !!conflict;
+  const merge =
+    conflict && baseline.current
+      ? mergeRecord(baseline.current, conflict.mine, conflict.shared, choices)
+      : null;
   const form = useRef<HTMLFormElement>(null);
+  const conflictRegion = useRef<HTMLElement>(null);
   const initial = useRef("");
+  useEffect(() => {
+    if (conflict) conflictRegion.current?.focus();
+  }, [conflict]);
   useLayoutEffect(() => {
-    if (form.current)
-      initial.current = JSON.stringify([...new FormData(form.current)]);
-  }, []);
+    if (!form.current) return;
+    const entries = [...new FormData(form.current)];
+    const nextBase = pendingBaseline.current;
+    initial.current = JSON.stringify(
+      nextBase
+        ? entries.map(([key]) => [
+            key,
+            key.startsWith("attendance-")
+              ? (nextBase.attendance as Record<string, string> | undefined)?.[
+                  key.slice(11)
+                ] || "Nicht eingeladen"
+              : String(nextBase[key] ?? (key === "partySize" ? 1 : "")),
+          ])
+        : entries,
+    );
+    pendingBaseline.current = null;
+    setDirty(JSON.stringify(entries) !== initial.current);
+    if (nextBase)
+      form.current
+        .querySelector<HTMLElement>("input, select, textarea")
+        ?.focus();
+  }, [revision]);
   useEffect(
     () => onStatusChange({ dirty, saving: busy }),
     [dirty, busy, onStatusChange],
@@ -41,7 +80,7 @@ export default function RecordEditor({
     return () => window.removeEventListener("beforeunload", warn);
   }, [dirty, busy]);
   const value = (key: string, fallback: string | number = "") =>
-    String(record?.[key] ?? fallback);
+    String(displayRecord?.[key] ?? fallback);
   const field = (
     key: string,
     label: string,
@@ -52,7 +91,7 @@ export default function RecordEditor({
       {label}
       <input
         name={key}
-        disabled={busy}
+        disabled={locked}
         type={type}
         required={required}
         defaultValue={value(key)}
@@ -67,7 +106,7 @@ export default function RecordEditor({
       {label}
       <textarea
         name={key}
-        disabled={busy}
+        disabled={locked}
         defaultValue={value(key)}
         rows={3}
         maxLength={4000}
@@ -82,7 +121,7 @@ export default function RecordEditor({
   ) => (
     <label key={key}>
       {label}
-      <select name={key} disabled={busy} defaultValue={value(key, fallback)}>
+      <select name={key} disabled={locked} defaultValue={value(key, fallback)}>
         {options.map((option) => (
           <option key={option} value={option}>
             {option || "Noch offen"}
@@ -101,7 +140,7 @@ export default function RecordEditor({
   const eventSelect = select("event", "Veranstaltung", eventOptions);
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (busy) return;
+    if (locked) return;
     setBusy(true);
     setError("");
     const fields = Object.fromEntries(new FormData(e.currentTarget));
@@ -109,12 +148,12 @@ export default function RecordEditor({
       fields[key] === "" || fields[key] === undefined
         ? null
         : Number(fields[key]);
-    const data: Record<string, unknown> = { ...record, ...fields };
-    if (kind === "tasks") data.done = record?.done || false;
+    const data: PlanningRecord = { ...baseline.current, ...fields };
+    if (kind === "tasks") data.done = baseline.current?.done || false;
     if (kind === "costs") {
       data.amount = numeric("amount");
       data.paid = numeric("paid");
-      data.offerId = record?.offerId || null;
+      data.offerId = baseline.current?.offerId || null;
     }
     if (kind === "events") data.guests = numeric("guests");
     if (kind === "settings") {
@@ -137,18 +176,38 @@ export default function RecordEditor({
       onStatusChange({ dirty: false, saving: false });
       onSaved();
     } catch (error) {
-      setError((error as Error).message);
+      if (error instanceof ApiError && error.status === 409 && data.id) {
+        try {
+          const latest = await getState();
+          const shared = latest[kind].find((row) => row.id === data.id) as
+            PlanningRecord | undefined;
+          if (!shared)
+            setError(
+              "Dieser Eintrag wurde inzwischen gelöscht. Deine Eingaben bleiben hier erhalten; der Eintrag wird nicht neu angelegt.",
+            );
+          else if (shared.version !== baseline.current?.version) {
+            setConflict({ mine: data, shared });
+            setChoices({});
+          } else setError(error.message);
+        } catch {
+          setError(
+            "Die gemeinsame Fassung konnte nicht geladen werden. Deine Eingaben bleiben erhalten. Bitte Verbindung prüfen und erneut speichern.",
+          );
+        }
+      } else setError((error as Error).message);
     } finally {
       setBusy(false);
     }
   }
   return (
     <form
+      key={revision}
       ref={form}
       className="form-stack"
       onSubmit={submit}
       aria-busy={busy}
       onChange={() => {
+        if (locked) return;
         if (form.current)
           setDirty(
             JSON.stringify([...new FormData(form.current)]) !== initial.current,
@@ -194,7 +253,11 @@ export default function RecordEditor({
           )}
           <label>
             Verantwortlich
-            <select name="owner" disabled={busy} defaultValue={value("owner")}>
+            <select
+              name="owner"
+              disabled={locked}
+              defaultValue={value("owner")}
+            >
               <option value="">Noch offen</option>
               {state.members.map((member) => (
                 <option key={member.id} value={member.id}>
@@ -266,7 +329,7 @@ export default function RecordEditor({
             Anzahl Personen
             <input
               name="partySize"
-              disabled={busy}
+              disabled={locked}
               type="number"
               min={1}
               max={1000}
@@ -290,10 +353,11 @@ export default function RecordEditor({
               {event.name}: Einladung & Rückmeldung
               <select
                 name={"attendance-" + event.id}
-                disabled={busy}
+                disabled={locked}
                 defaultValue={
-                  (record?.attendance as Record<string, string>)?.[event.id] ||
-                  "Nicht eingeladen"
+                  (displayRecord?.attendance as Record<string, string>)?.[
+                    event.id
+                  ] || "Nicht eingeladen"
                 }
               >
                 {attendanceValues.map((option) => (
@@ -308,13 +372,102 @@ export default function RecordEditor({
         </>
       )}
       <ErrorMessage message={error} />
+      {conflict && merge && (
+        <section
+          ref={conflictRegion}
+          tabIndex={-1}
+          className="offer-conflict"
+          aria-label="Gemeinsame Änderungen prüfen"
+        >
+          <h3>Ihr habt beide weitergeplant.</h3>
+          <p>
+            Deine Eingaben bleiben erhalten. Verschiedene Angaben werden
+            zusammengeführt; bei derselben Angabe wählt ihr einen Wert. Erst
+            danach speichert ihr die geprüfte Fassung.
+          </p>
+          {merge.conflicts.map((field) => (
+            <fieldset key={field.key}>
+              <legend>
+                {field.key.startsWith("attendance-")
+                  ? `${state.events.find((event) => event.id === field.key.slice(11))?.name || "Feier"}: Einladung & Rückmeldung`
+                  : recordLabels[field.key] || field.key}
+              </legend>
+              {(["mine", "shared"] as const).map((choice) => (
+                <label key={choice}>
+                  <input
+                    type="radio"
+                    name={`conflict-${field.key}`}
+                    checked={choices[field.key] === choice}
+                    onChange={() =>
+                      setChoices((previous) => ({
+                        ...previous,
+                        [field.key]: choice,
+                      }))
+                    }
+                  />
+                  <span>
+                    <strong>
+                      {choice === "mine"
+                        ? "Meine Eingabe"
+                        : "Gemeinsamer Stand"}
+                    </strong>
+                    {field.key === "owner"
+                      ? state.members.find(
+                          (member) => member.id === field[choice],
+                        )?.name || "Noch offen"
+                      : typeof field[choice] === "boolean"
+                        ? field[choice]
+                          ? "Ja"
+                          : "Nein"
+                        : String(field[choice] ?? "Noch offen") || "Noch offen"}
+                  </span>
+                </label>
+              ))}
+            </fieldset>
+          ))}
+          {!merge.conflicts.length && (
+            <p>
+              Ihr habt unterschiedliche Angaben geändert. Beide Änderungen
+              passen zusammen.
+            </p>
+          )}
+          <div className="offer-conflict-actions">
+            <Button
+              disabled={merge.unresolved}
+              onClick={() => {
+                baseline.current = conflict.shared;
+                pendingBaseline.current = conflict.shared;
+                setDisplayRecord(merge.merged);
+                setConflict(null);
+                setChoices({});
+                setRevision((value) => value + 1);
+              }}
+            >
+              Zusammengeführte Fassung prüfen
+            </Button>
+            <Button
+              secondary
+              onClick={() => {
+                setConflict(null);
+                setChoices({});
+              }}
+            >
+              Eigene Eingaben weiter bearbeiten
+            </Button>
+          </div>
+          <small>
+            Noch nichts gespeichert. Weitere gemeinsame Änderungen werden beim
+            Speichern erneut geprüft.
+          </small>
+        </section>
+      )}
       {dirty && (
         <small role="status">
           Noch nicht gespeichert. Erst „Dauerhaft speichern“ übernimmt eure
           Änderungen.
         </small>
       )}
-      <Button type="submit" disabled={busy}>
+      <Button type="submit" disabled={locked}>
         {busy ? "Wird gespeichert …" : "Dauerhaft speichern"}
       </Button>
       <small>

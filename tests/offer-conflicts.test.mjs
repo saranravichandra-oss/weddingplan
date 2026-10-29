@@ -1,6 +1,94 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { mergeOffer } from "../src/offer-conflicts.ts";
+import { mergeRecord } from "../src/record-conflicts.ts";
+
+test("planning merges retain independent celebration responses and immutable shared metadata", () => {
+  const base = {
+    id: "group",
+    version: 1,
+    name: "Testfamilie",
+    partySize: 3,
+    importBatch: "original-batch",
+    attendance: { civil: "Vorgesehen", evening: "Vorgesehen" },
+  };
+  const mine = {
+    ...base,
+    name: "Testfamilie korrigiert",
+    importBatch: "stale-must-not-replace",
+    attendance: { ...base.attendance, civil: "Zugesagt" },
+  };
+  const shared = {
+    ...base,
+    version: 2,
+    updatedBy: "other",
+    partySize: 4,
+    attendance: { ...base.attendance, evening: "Abgesagt" },
+  };
+  const { merged, unresolved } = mergeRecord(base, mine, shared);
+  assert.equal(unresolved, false);
+  assert.equal(merged.name, mine.name);
+  assert.equal(merged.partySize, 4);
+  assert.equal(merged.version, 2);
+  assert.equal(merged.importBatch, "original-batch");
+  assert.deepEqual(merged.attendance, {
+    civil: "Zugesagt",
+    evening: "Abgesagt",
+  });
+  assert.deepEqual(shared.attendance, {
+    civil: "Vorgesehen",
+    evening: "Abgesagt",
+  });
+});
+
+test("the same celebration or planning field needs an explicit choice, including cleared values", () => {
+  const base = {
+    version: 1,
+    notes: "Vorher",
+    attendance: { evening: "Vorgesehen" },
+  };
+  const mine = { ...base, notes: "", attendance: { evening: "Zugesagt" } };
+  const shared = {
+    ...base,
+    version: 2,
+    notes: "Gemeinsame Notiz",
+    attendance: { evening: "Abgesagt" },
+  };
+  const pending = mergeRecord(base, mine, shared);
+  assert.equal(pending.unresolved, true);
+  assert.deepEqual(pending.conflicts.map(({ key }) => key).sort(), [
+    "attendance-evening",
+    "notes",
+  ]);
+  const result = mergeRecord(base, mine, shared, {
+    notes: "mine",
+    "attendance-evening": "shared",
+  });
+  assert.equal(result.unresolved, false);
+  assert.equal(result.merged.notes, "");
+  assert.deepEqual(result.merged.attendance, { evening: "Abgesagt" });
+});
+
+test("another simultaneous change is compared with the adopted baseline before another write", () => {
+  const base = { version: 1, title: "Testaufgabe", detail: "Alt", done: false };
+  const firstShared = { ...base, version: 2, detail: "Vom anderen Konto" };
+  const first = mergeRecord(
+    base,
+    { ...base, title: "Eigener Titel" },
+    firstShared,
+  );
+  const secondShared = {
+    ...firstShared,
+    version: 3,
+    title: "Neuer gemeinsamer Titel",
+    done: true,
+  };
+  const second = mergeRecord(firstShared, first.merged, secondShared);
+  assert.equal(second.unresolved, true);
+  assert.equal(second.merged.done, true);
+  assert.equal(second.merged.version, 3);
+  assert.equal(second.conflicts[0].key, "title");
+});
 const base = {
   id: "fixture",
   version: 1,

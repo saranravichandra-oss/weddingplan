@@ -67,6 +67,24 @@
   gap: 12px;
   margin: 18px 0;
 }
+.offer-conflict-actions .button {
+  min-width: 0;
+  max-width: 100%;
+  height: auto;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.5;
+}
+.form-stack .offer-conflict fieldset label {
+  display: flex;
+  min-height: 44px;
+}
+.form-stack .offer-conflict input[type="radio"] {
+  width: 18px;
+  height: 18px;
+  min-height: 18px;
+  padding: 0;
+}
 .offer-conflict > small {
   font-size: 11px;
   line-height: 1.8;
