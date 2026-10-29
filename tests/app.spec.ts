@@ -612,3 +612,223 @@ test("a shared section link keeps its destination through sign in", async ({
   ).toBeVisible();
   await expect(page).toHaveURL(/bereich=entdecken/);
 });
+
+test("simultaneous offer edits preserve both accounts and ask for competing values before saving", async ({
+  page,
+  browser,
+}) => {
+  await login(page);
+  const auth = await (await page.request.get("/api/auth/me")).json();
+  const response = await page.request.post("/api/records/offers", {
+    headers: { "X-CSRF-Token": auth.csrf },
+    data: {
+      name: "Gemeinsamer Browser-Vergleich",
+      price: 1000,
+      currency: "EUR",
+      delivery: "8 Wochen",
+      confirmed: true,
+    },
+  });
+  expect(response.ok()).toBeTruthy();
+  const original = await response.json();
+  await page.reload();
+  await section(page, "Dienstleister");
+  await page
+    .getByRole("searchbox", { name: "Anbieter suchen" })
+    .fill(original.name);
+  await page
+    .getByRole("button", { name: "Original & Angaben", exact: true })
+    .click();
+  await page
+    .getByRole("spinbutton", { name: "Gesamtpreis", exact: true })
+    .fill("1200");
+  const confirmation = page.getByRole("checkbox", {
+    name: /Ich habe Original und Angaben geprüft/,
+  });
+  await confirmation.check();
+  const partnerContext = await browser.newContext();
+  try {
+    const partner = await partnerContext.newPage();
+    await login(partner, true);
+    const partnerAuth = await (
+      await partner.request.get("/api/auth/me")
+    ).json();
+    // Create a real stale-write race after the form's version has been sent.
+    await page.route(
+      `**/api/records/offers/${original.id}`,
+      async (route) => {
+        const changed = await partner.request.put(
+          `/api/records/offers/${original.id}`,
+          {
+            headers: { "X-CSRF-Token": partnerAuth.csrf },
+            data: {
+              ...original,
+              price: 1300,
+              delivery: "12 Wochen",
+              manualFields: ["price", "delivery"],
+            },
+          },
+        );
+        expect(changed.ok()).toBeTruthy();
+        await route.continue();
+      },
+      { times: 1 },
+    );
+    await page
+      .getByRole("button", {
+        name: "Bestätigt in den Vergleich übernehmen",
+        exact: true,
+      })
+      .click();
+    const conflicts = page.getByRole("region", {
+      name: "Gemeinsame Änderungen prüfen",
+    });
+    await expect(conflicts).toBeVisible();
+    await expect(
+      conflicts.getByRole("button", {
+        name: "Änderungen zusammenführen",
+        exact: true,
+      }),
+    ).toBeDisabled();
+    await expect(
+      page.getByRole("button", {
+        name: "Bestätigt in den Vergleich übernehmen",
+        exact: true,
+      }),
+    ).toBeDisabled();
+    await conflicts
+      .getByRole("group", { name: "Gesamtpreis", exact: true })
+      .getByRole("radio")
+      .first()
+      .check();
+    await conflicts
+      .getByRole("button", { name: "Änderungen zusammenführen", exact: true })
+      .click();
+    await expect(conflicts).toHaveCount(0);
+    await expect(
+      page.getByRole("spinbutton", { name: "Gesamtpreis", exact: true }),
+    ).toHaveValue("1200");
+    await expect(
+      page.getByRole("textbox", {
+        name: "Bearbeitungs- und Lieferzeiten",
+        exact: true,
+      }),
+    ).toHaveValue("12 Wochen");
+    await expect(confirmation).not.toBeChecked();
+    const notYetSaved = await (await page.request.get("/api/state")).json();
+    expect(
+      notYetSaved.offers.find(
+        (offer: { id: string }) => offer.id === original.id,
+      ).price,
+    ).toBe(1300);
+    await confirmation.check();
+    await page
+      .getByRole("button", {
+        name: "Bestätigt in den Vergleich übernehmen",
+        exact: true,
+      })
+      .click();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    const final = await (await partner.request.get("/api/state")).json();
+    const merged = final.offers.find(
+      (offer: { id: string }) => offer.id === original.id,
+    );
+    expect(merged.price).toBe(1200);
+    expect(merged.delivery).toBe("12 Wochen");
+    expect(merged.version).toBe(3);
+    expect(merged.manualFields).toContain("delivery");
+  } finally {
+    await partnerContext.close();
+  }
+});
+
+test("different shared originals never mix package fields and a local draft can become a separate offer", async ({
+  page,
+}) => {
+  await login(page);
+  const auth = await (await page.request.get("/api/auth/me")).json();
+  const headers = { "X-CSRF-Token": auth.csrf };
+  const firstDoc = await (
+    await page.request.post("/api/documents/text", {
+      headers,
+      data: { text: "Anbieter: Quellenfixture\nGesamtpreis: 1000 EUR" },
+    })
+  ).json();
+  const secondDoc = await (
+    await page.request.post("/api/documents/text", {
+      headers,
+      data: { text: "Anbieter: Quellenfixture\nGesamtpreis: 1500 EUR" },
+    })
+  ).json();
+  const original = await (
+    await page.request.post("/api/records/offers", {
+      headers,
+      data: {
+        name: "Getrennte Browser-Originale",
+        price: 1000,
+        currency: "EUR",
+        documentId: firstDoc.id,
+        confirmed: true,
+      },
+    })
+  ).json();
+  await page.reload();
+  await section(page, "Dienstleister");
+  await page
+    .getByRole("searchbox", { name: "Anbieter suchen" })
+    .fill(original.name);
+  await page
+    .getByRole("button", { name: "Original & Angaben", exact: true })
+    .click();
+  await page
+    .getByRole("spinbutton", { name: "Gesamtpreis", exact: true })
+    .fill("1100");
+  const update = await page.request.put(`/api/records/offers/${original.id}`, {
+    headers,
+    data: { ...original, price: 1500, documentId: secondDoc.id },
+  });
+  expect(update.ok()).toBeTruthy();
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  const conflicts = page.getByRole("region", {
+    name: "Gemeinsame Änderungen prüfen",
+  });
+  await expect(conflicts).toContainText("unterschiedliche Originale");
+  await expect(
+    conflicts.getByRole("button", {
+      name: "Änderungen zusammenführen",
+      exact: true,
+    }),
+  ).toHaveCount(0);
+  await conflicts
+    .getByRole("button", {
+      name: "Entwurf als eigenes Angebot weiterführen",
+      exact: true,
+    })
+    .click();
+  await expect(conflicts).toHaveCount(0);
+  await expect(
+    page.getByRole("spinbutton", { name: "Gesamtpreis", exact: true }),
+  ).toHaveValue("1100");
+  await page
+    .getByRole("checkbox", { name: /Ich habe Original und Angaben geprüft/ })
+    .check();
+  await page
+    .getByRole("button", {
+      name: "Bestätigt in den Vergleich übernehmen",
+      exact: true,
+    })
+    .click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  const state = await (await page.request.get("/api/state")).json();
+  expect(
+    state.offers.find((value: { id: string }) => value.id === original.id)
+      .price,
+  ).toBe(1500);
+  const separate = state.offers.find(
+    (value: { id: string; name: string }) =>
+      value.name === original.name && value.id !== original.id,
+  );
+  expect(separate.price).toBe(1100);
+  expect(separate.documentId).toBe(firstDoc.id);
+  expect(separate.status).toBe("Geprüft");
+});

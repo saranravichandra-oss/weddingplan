@@ -1,10 +1,12 @@
 import { useEffect, useState, useRef } from "react";
 import { Check, FileText, Info, UploadSimple } from "@phosphor-icons/react";
-import { api, json, saveRecord } from "../api";
+import { api, json, saveRecord, getState, ApiError } from "../api";
 import { analyzeDocument, cloudMode, uploadDocument } from "../documents";
 import { categories, emptyOffer } from "../data";
 import type { Document, Offer, Provider, WeddingEvent } from "../data";
 import { Badge, Button, ErrorMessage } from "./ui";
+import { mergeOffer, offerLabels } from "../offer-conflicts";
+import type { MergeChoice } from "../offer-conflicts";
 import {
   offerDraftKey,
   readOfferDraft,
@@ -16,6 +18,7 @@ import {
 export default function OfferReview({
   userId,
   offer,
+  latestOffer,
   initialDocument,
   providers,
   events,
@@ -24,6 +27,7 @@ export default function OfferReview({
 }: {
   userId: string;
   offer?: Offer;
+  latestOffer?: Offer;
   initialDocument?: string;
   providers: Provider[];
   events: WeddingEvent[];
@@ -32,6 +36,20 @@ export default function OfferReview({
 }) {
   const draftKey = offerDraftKey(userId, offer?.id || initialDocument || "new");
   const [cached] = useState(() => readOfferDraft(draftKey));
+  const [baseOffer, setBaseOffer] = useState<Offer | undefined>(
+    () =>
+      cached?.baseOffer ||
+      (cached && cached.draft.version !== offer?.version ? undefined : offer),
+  );
+  const [remoteOffer, setRemoteOffer] = useState<Offer | undefined>();
+  const [mergeChoices, setMergeChoices] = useState<Record<string, MergeChoice>>(
+    {},
+  );
+  const currentOffer =
+    remoteOffer && (!latestOffer || remoteOffer.version > latestOffer.version)
+      ? remoteOffer
+      : latestOffer;
+  const confirmationRef = useRef<HTMLInputElement>(null);
   const [dirty, setDirty] = useState(!!cached),
     [draftStored, setDraftStored] = useState(!!cached);
   const submitted = useRef(false);
@@ -67,9 +85,21 @@ export default function OfferReview({
         text,
         applied,
         savedAt: new Date().toISOString(),
+        baseOffer,
       }),
     );
-  }, [draftKey, draft, documentId, corrected, mode, text, applied, dirty]);
+  }, [
+    draftKey,
+    draft,
+    documentId,
+    corrected,
+    mode,
+    text,
+    applied,
+    dirty,
+    baseOffer,
+  ]);
+  useEffect(() => setMergeChoices({}), [currentOffer?.version]);
   useEffect(() => {
     onUnsavedChange(dirty && !draftStored);
     return () => onUnsavedChange(false);
@@ -207,6 +237,49 @@ export default function OfferReview({
     }
   }
   const sources = doc?.analysis?.evidence || draft.evidence || {};
+  const stale = !!(
+    draft.id &&
+    currentOffer &&
+    draft.version !== currentOffer.version
+  );
+  const differentSource = !!(
+    stale && currentOffer?.documentId !== (documentId || null)
+  );
+  const merge =
+    stale && currentOffer
+      ? mergeOffer(
+          baseOffer,
+          {
+            ...draft,
+            documentId: documentId || null,
+            evidence: sources,
+            manualFields: corrected,
+          },
+          currentOffer,
+          mergeChoices,
+        )
+      : null;
+  function adopt(next: Partial<Offer>, baseline?: Offer) {
+    if (next.documentId !== documentId) setDoc(null);
+    setDraft(next);
+    setBaseOffer(baseline);
+    setCorrected(next.manualFields || []);
+    setDocumentId(next.documentId || "");
+    setApplied(next.documentId || "");
+    setDirty(true);
+    setMergeChoices({});
+    setError("");
+    if (confirmationRef.current) confirmationRef.current.checked = false;
+  }
+  const conflictValue = (key: keyof Offer, value: unknown) =>
+    key === "providerId"
+      ? providers.find((provider) => provider.id === value)?.name ||
+        "Nicht zugeordnet"
+      : value === null || value === undefined || value === ""
+        ? "Nicht angegeben"
+        : Array.isArray(value)
+          ? value.join(" + ") || "Nicht angegeben"
+          : String(value);
   const source = (key: keyof Offer) =>
     sources[key]?.length ? (
       <details className="field-source">
@@ -296,11 +369,13 @@ export default function OfferReview({
             onClick={() => {
               submitted.current = true;
               forgetOfferDraft(draftKey);
-              setDraft({ ...emptyOffer, ...offer });
+              const original = currentOffer || offer;
+              setDraft({ ...emptyOffer, ...original });
+              setBaseOffer(original);
               setDoc(null);
-              setDocumentId(initialDocument || offer?.documentId || "");
-              setCorrected(offer?.manualFields || []);
-              setApplied("");
+              setDocumentId(original?.documentId || initialDocument || "");
+              setCorrected(original?.manualFields || []);
+              setApplied(original?.documentId || "");
               setText("");
               setDirty(false);
               setDraftStored(false);
@@ -320,6 +395,88 @@ export default function OfferReview({
         </span>
       </div>
       <ErrorMessage message={error} />
+      {stale && currentOffer && merge && (
+        <section
+          className="offer-conflict"
+          aria-label="Gemeinsame Änderungen prüfen"
+        >
+          <h3>Ihr habt beide weitergeplant.</h3>
+          <p>
+            Eine neuere gemeinsame Fassung ist vorhanden. Dein Entwurf bleibt
+            erhalten.{" "}
+            {differentSource
+              ? "Die Fassungen verwenden unterschiedliche Originale. Wählt eine Fassung oder führt deinen Entwurf als eigenes Angebot weiter."
+              : "Unterschiedliche Felder lassen sich zusammenführen. Bei derselben Angabe entscheidet ihr, welcher Wert gelten soll."}
+          </p>
+          {!differentSource &&
+            merge.conflicts.map((field) => (
+              <fieldset key={field.key}>
+                <legend>{offerLabels[field.key] || field.key}</legend>
+                {(["mine", "shared"] as const).map((choice) => (
+                  <label key={choice}>
+                    <input
+                      type="radio"
+                      name={`conflict-${field.key}`}
+                      checked={mergeChoices[field.key] === choice}
+                      onChange={() =>
+                        setMergeChoices((previous) => ({
+                          ...previous,
+                          [field.key]: choice,
+                        }))
+                      }
+                    />
+                    <span>
+                      <strong>
+                        {choice === "mine"
+                          ? "Mein Entwurf"
+                          : "Gemeinsamer Stand"}
+                      </strong>
+                      {conflictValue(field.key, field[choice])}
+                    </span>
+                  </label>
+                ))}
+              </fieldset>
+            ))}
+          <div className="offer-conflict-actions">
+            {!differentSource && (
+              <Button
+                disabled={merge.unresolved}
+                onClick={() => adopt(merge.merged, currentOffer)}
+              >
+                Änderungen zusammenführen
+              </Button>
+            )}
+            <Button secondary onClick={() => adopt(currentOffer, currentOffer)}>
+              Gemeinsame Fassung verwenden
+            </Button>
+            {differentSource && (
+              <Button
+                secondary
+                onClick={() => {
+                  const next = {
+                    ...draft,
+                    documentId: documentId || null,
+                    evidence: sources,
+                    manualFields: corrected,
+                    status: "Geprüft",
+                  };
+                  delete next.id;
+                  delete next.version;
+                  delete next.updatedAt;
+                  delete next.updatedBy;
+                  adopt(next);
+                }}
+              >
+                Entwurf als eigenes Angebot weiterführen
+              </Button>
+            )}
+          </div>
+          <small>
+            Danach Angaben erneut prüfen und bestätigen. Erst das Speichern
+            aktualisiert euren gemeinsamen Vergleich.
+          </small>
+        </section>
+      )}
       <div className="review-layout">
         <section className="original-pane">
           <div className="pane-title">
@@ -561,6 +718,25 @@ export default function OfferReview({
               onSaved();
             } catch (error) {
               setError((error as Error).message);
+              if (
+                error instanceof ApiError &&
+                error.status === 409 &&
+                draft.id
+              ) {
+                try {
+                  const state = await getState();
+                  const fresh = state.offers.find(
+                    (value) => value.id === draft.id,
+                  );
+                  if (fresh) setRemoteOffer(fresh);
+                  else
+                    setError(
+                      "Dieses Angebot wurde inzwischen entfernt. Dein Entwurf ist weiterhin in diesem Tab vorhanden.",
+                    );
+                } catch {
+                  /* The original error and tab draft remain available. */
+                }
+              }
             } finally {
               setBusy(false);
             }
@@ -702,7 +878,7 @@ export default function OfferReview({
             </div>
           </details>
           <label className="confirmation">
-            <input type="checkbox" required />
+            <input ref={confirmationRef} type="checkbox" required />
             <span>
               Ich habe Original und Angaben geprüft. Fehlendes bleibt offen.
               Optionale Extras wurden nicht zum Paketpreis addiert.
@@ -712,6 +888,7 @@ export default function OfferReview({
             type="submit"
             disabled={
               busy ||
+              stale ||
               (!!documentId && !doc) ||
               doc?.status === "running" ||
               doc?.status === "queued"

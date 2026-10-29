@@ -1,0 +1,86 @@
+.offer-conflict {
+  padding: 24px;
+  margin: 20px 0 28px;
+  border: 1px solid #c6b480;
+  border-radius: 13px;
+  background: #f7f2df;
+}
+.offer-conflict h3 {
+  font:
+    400 27px/1.2 Georgia,
+    serif;
+  color: #5a4c2b;
+  margin: 0 0 14px;
+}
+.offer-conflict > p {
+  font-size: 13px;
+  line-height: 1.8;
+  color: #645936;
+}
+.offer-conflict fieldset {
+  margin: 20px 0;
+  padding: 14px;
+  border: 1px solid #d9ceab;
+  border-radius: 9px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.offer-conflict legend {
+  font-size: 12px;
+  font-weight: 700;
+  color: #65552e;
+  padding: 0 7px;
+}
+.offer-conflict fieldset label {
+  display: flex;
+  align-items: start;
+  gap: 10px;
+  cursor: pointer;
+  padding: 12px;
+  background: #fffef6;
+  border-radius: 7px;
+  min-width: 0;
+}
+.offer-conflict fieldset input {
+  margin-top: 3px;
+  accent-color: #5b743d;
+  flex-shrink: 0;
+}
+.offer-conflict label span {
+  font-size: 13px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+  white-space: pre-line;
+}
+.offer-conflict label strong {
+  display: block;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 7px;
+  color: #6d6849;
+}
+.offer-conflict-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 18px 0;
+}
+.offer-conflict > small {
+  font-size: 11px;
+  line-height: 1.8;
+  color: #645936;
+}
+@media (max-width: 700px) {
+  .offer-conflict {
+    padding: 20px 17px;
+  }
+  .offer-conflict fieldset {
+    grid-template-columns: 1fr;
+  }
+  .offer-conflict-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

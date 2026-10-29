@@ -1528,6 +1528,9 @@ function PlanningApp({ user, logout }: { user: User; logout: () => void }) {
             userId={user.id}
             onUnsavedChange={setReviewUnsaved}
             offer={review.offer}
+            latestOffer={state.offers.find(
+              (offer) => offer.id === review.offer?.id,
+            )}
             initialDocument={review.documentId}
             providers={state.providers}
             events={state.events}

@@ -7,6 +7,7 @@ export type OfferDraft = {
   text: string;
   applied: string;
   savedAt: string;
+  baseOffer?: Offer;
 };
 const prefix = "wedding-ss:offer-draft:";
 export const offerDraftKey = (userId: string, source: string) =>
