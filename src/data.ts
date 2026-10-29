@@ -12,6 +12,7 @@ export const events = ["Standesamt", "Tamilische Zeremonie", "Reception"];
 export const categories = [
   "Foto & Video",
   "Catering",
+  "Dekoration",
   "Location",
   "Musik",
   "Outfits & Styling",

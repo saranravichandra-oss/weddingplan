@@ -2,6 +2,10 @@
 
 Die ausgewählte Variante A als private, gemeinsam nutzbare App. React und TypeScript im Browser, wahlweise lokal mit SQLite oder online mit Vercel Hobby und Supabase Free. Es gibt keinen Codepfad für kostenpflichtige KI-Aufrufe.
 
+Die Atelier-Oberfläche bietet verlinkbare Bereiche, eine Kartenübersicht und den direkten Angebotsvergleich, Excel-Gästeimport mit Familiengrößen sowie eine getrennte recherchierte Vorauswahl. Vorschläge erzeugen erst nach ausdrücklichem Merken einen Kontakt. Öffentliche Preisbausteine sind keine persönlichen Angebote und fließen nicht automatisch ins Budget ein.
+
+Angebotsentwürfe werden im aktuellen Browser-Tab pro Konto wiederaufgenommen. Die unbestätigten Feldkorrekturen stehen bis zur Übernahme nur in diesem Tab; hochgeladene Originale und Auswertungen liegen bereits im gemeinsamen privaten Dokumentbereich. Bei gleichzeitigen Änderungen werden unterschiedliche Felder zusammengeführt und konkurrierende Angaben bewusst ausgewählt. Unterschiedliche Originale werden als getrennte Fassungen behandelt. Nach einer Zusammenführung ist eine erneute Prüfung nötig.
+
 ## Online gemeinsam planen
 
 Die Cloud-Fassung verwendet eine stateless Vercel-Funktion als Proxy, eine Supabase Edge Function mit eigener Sitzungsprüfung, Postgres und einen privaten Storage-Bucket. Originale und Auswertungen werden dauerhaft im gemeinsamen Speicher abgelegt. Das Lesen von PDF-Text und die deutsche/englische OCR erfolgen im Browser mit selbst gehosteten Sprachdateien. Der Browser muss während der Auswertung geöffnet bleiben. Bei einem Abbruch kann die Auswertung fortgesetzt werden. Es gibt keine externe KI-Analyse und keinen benötigten OpenAI-Schlüssel.

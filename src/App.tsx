@@ -53,6 +53,7 @@ import GuestImport from "./components/GuestImport";
 import Dashboard from "./components/Dashboard";
 import Discover from "./components/Discover";
 import OfferCards from "./components/OfferCards";
+import EventIdeas from "./components/EventIdeas";
 import { currentSection, sectionHref } from "./navigation";
 import { clearOfferDrafts } from "./offer-drafts";
 import { attendanceValues, peopleCount } from "../shared/guests.mjs";
@@ -1190,6 +1191,11 @@ function PlanningApp({ user, logout }: { user: User; logout: () => void }) {
         180–220 Personen sind für die größte Feier geplant. Die Einzelzahlen und
         ihre Zuordnung bleiben offen, bis ihr sie eintragt.
       </div>
+      <EventIdeas
+        events={state.events}
+        tasks={state.tasks}
+        onPrepare={(task) => edit("tasks", task)}
+      />
     </>
   );
   const documentsView = (
@@ -1478,7 +1484,7 @@ function PlanningApp({ user, logout }: { user: User; logout: () => void }) {
               ? "Budget & Planungsannahmen"
               : editor.kind === "events"
                 ? "Eure Veranstaltung"
-                : editor.record
+                : editor.record?.id
                   ? "Eintrag bearbeiten"
                   : "Neuen Eintrag anlegen"
           }

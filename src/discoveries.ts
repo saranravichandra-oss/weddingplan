@@ -10,6 +10,8 @@ export type Discovery = {
   facts: [string, string][];
   questions: string[];
   attention?: string;
+  catering?: "frei" | "gebunden" | "offen";
+  dinnerSeats?: number;
   sources: { title: string; url: string }[];
 };
 
@@ -257,6 +259,8 @@ export const discoveries: Discovery[] = [
   },
   {
     id: "meistersaal",
+    catering: "frei",
+    dinnerSeats: 220,
     name: "Meistersaal",
     category: "Location",
     region: "Berlin · Kreuzberg",
@@ -295,6 +299,8 @@ export const discoveries: Discovery[] = [
   },
   {
     id: "spreespeicher",
+    catering: "offen",
+    dinnerSeats: 350,
     name: "Spreespeicher · 030 Eventloft",
     category: "Location",
     region: "Berlin · Friedrichshain",
@@ -324,6 +330,8 @@ export const discoveries: Discovery[] = [
   },
   {
     id: "stober",
+    catering: "offen",
+    dinnerSeats: 360,
     name: "Landgut Stober",
     category: "Location",
     region: "Brandenburg · Groß Behnitz",
@@ -357,6 +365,7 @@ export const discoveries: Discovery[] = [
   },
   {
     id: "orankesee",
+    catering: "gebunden",
     name: "Orankesee Terrassen",
     category: "Location",
     region: "Berlin · Alt-Hohenschönhausen",
@@ -388,6 +397,7 @@ export const discoveries: Discovery[] = [
   },
   {
     id: "richtershorn",
+    catering: "frei",
     name: "Richtershorn am See",
     category: "Location",
     region: "Berlin · Köpenick",
@@ -422,6 +432,7 @@ export const discoveries: Discovery[] = [
   },
   {
     id: "mq-ranch",
+    catering: "offen",
     name: "MQ-Ranch",
     category: "Location",
     region: "Brandenburg",
@@ -447,6 +458,76 @@ export const discoveries: Discovery[] = [
       {
         title: "Eigene Hochzeitsseite",
         url: "https://mq-ranch.de/hochzeitslocations/hochzeitslocation-in-berlin-und-brandenburg/",
+      },
+    ],
+  },
+  {
+    id: "bolle",
+    name: "BOLLE Festsäle",
+    category: "Location",
+    region: "Berlin · Moabit",
+    local: true,
+    catering: "frei",
+    dinnerSeats: 400,
+    headline: "Historischer Festsaal mit freier Catererwahl.",
+    summary:
+      "Der eigene Raumplan nennt 400 Bankettplätze im 800-m²-Festsaal. Die FAQ bestätigt cateringfreie Buchung und eine Küche für externe Caterer – eine interessante Kombination für eure Planung.",
+    proof:
+      "Eigene Raumtabelle und eigene FAQ bestätigen Bestuhlung und Cateringfreiheit.",
+    facts: [
+      ["Festsaal", "400 Bankett / 510 Tafeln"],
+      ["Externes Catering", "Laut FAQ möglich, Küche vorhanden"],
+      ["Preis", "Individuelles Angebot offen"],
+    ],
+    questions: [
+      "Welche Raumgröße und Kosten gelten für eine private Hochzeit mit 180–220 Gästen?",
+      "Welche Küchen-, Personal- und Zusatzgebühren gelten für unseren Caterer?",
+      "Wie werden Dinner, Tanzfläche, Buffet und Veranstaltungsende konkret geplant?",
+    ],
+    sources: [
+      {
+        title: "Festsaal · eigene Kapazitätstabelle",
+        url: "https://bolle-events.com/eventlocation/festsaal/",
+      },
+      {
+        title: "FAQ · freie Catererwahl",
+        url: "https://bolle-events.com/faq/",
+      },
+    ],
+  },
+  {
+    id: "stadtgut-buch",
+    name: "Stadtgut Berlin-Buch",
+    category: "Location",
+    region: "Berlin · Buch",
+    local: true,
+    catering: "gebunden",
+    dinnerSeats: 440,
+    headline: "Große Scheune mit Garten – Catering gebunden.",
+    summary:
+      "Die beheizte, barrierefreie Scheune nennt 440 Bankett- bzw. 350 Galaplätze. Die Website bindet Catering an Kooperationspartner; ein eigener tamilischer Caterer ist daher nicht freigegeben.",
+    proof:
+      "Eigene Scheunenseite mit Bestuhlung, Cateringbindung und verlinkten Bedingungen.",
+    facts: [
+      ["Scheune", "440 Bankett / 350 Gala"],
+      ["Catering", "An Kooperationspartner gebunden"],
+      ["Preis", "Individuelles Angebot offen"],
+    ],
+    attention:
+      "Die veröffentlichten Bedingungen nennen zusätzliche Sanitär-/Serviceanforderungen ab etwa 200 Gästen. Aktuelle Konditionen für eure Personenzahl schriftlich klären.",
+    questions: [
+      "Kann ein tamilischer Caterer ausdrücklich als Partner oder Ausnahme zugelassen werden?",
+      "Welche zusätzlichen Sanitär-, Personal- und Reinigungskosten gelten für 220 Gäste?",
+      "Welcher Sitzplan lässt Platz für Buffet, Tanzfläche und eure gewählten Zeremonieelemente?",
+    ],
+    sources: [
+      {
+        title: "Scheune · Räume & Cateringbindung",
+        url: "https://stadtgut-buch.de/die-scheune/",
+      },
+      {
+        title: "Veröffentlichte Bedingungen",
+        url: "https://stadtgut-buch.de/agb/",
       },
     ],
   },

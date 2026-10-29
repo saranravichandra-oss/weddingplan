@@ -402,9 +402,17 @@ test("researched suggestions stay separate until explicitly remembered and keep 
   await login(page);
   const before = await (await page.request.get("/api/state")).json();
   await section(page, "Entdecken");
-  await expect(page.getByRole("article")).toHaveCount(14);
+  await expect(page.getByRole("article")).toHaveCount(16);
   await page.getByRole("button", { name: /^Location/ }).click();
-  await expect(page.getByRole("article")).toHaveCount(6);
+  await expect(page.getByRole("article")).toHaveCount(8);
+  await page
+    .getByRole("checkbox", { name: "Eigener Caterer laut Quelle möglich" })
+    .check();
+  await page.getByLabel("Sitzplätze laut Quelle").selectOption("220");
+  await expect(page.getByRole("article")).toHaveCount(2);
+  await expect(
+    page.getByRole("article", { name: "BOLLE Festsäle", exact: true }),
+  ).toBeVisible();
   await page
     .getByRole("searchbox", { name: "Vorschläge durchsuchen" })
     .fill("Meistersaal");
@@ -831,4 +839,66 @@ test("different shared originals never mix package fields and a local draft can 
   expect(separate.price).toBe(1100);
   expect(separate.documentId).toBe(firstDoc.id);
   expect(separate.status).toBe("Geprüft");
+});
+
+test("optional cultural planning ideas prepare an editable task without silently assigning rituals or people", async ({
+  page,
+}, testInfo) => {
+  await login(page);
+  const before = await (await page.request.get("/api/state")).json();
+  await section(page, "Veranstaltungen");
+  const ideas = page.getByRole("region", { name: "Optionale Planungsimpulse" });
+  await page.setViewportSize({ width: 390, height: 950 });
+  await ideas.evaluate((element) => element.scrollIntoView({ block: "start" }));
+  await page.screenshot({
+    path: testInfo.outputPath("planning-ideas-390.png"),
+  });
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBeTruthy();
+  await ideas
+    .getByLabel("Für welche Feier?")
+    .selectOption({ label: "Reception" });
+  const idea = ideas.getByRole("article", {
+    name: "Foto- und Filmmomente gemeinsam auswählen",
+    exact: true,
+  });
+  await idea
+    .getByRole("button", { name: "Als Aufgabe vorbereiten", exact: true })
+    .click();
+  const dialog = page.getByRole("dialog");
+  await expect(
+    dialog.getByRole("textbox", { name: "Aufgabe", exact: true }),
+  ).toHaveValue("Foto- und Filmmomente gemeinsam auswählen");
+  await expect(
+    dialog.getByRole("combobox", { name: "Veranstaltung", exact: true }),
+  ).toHaveValue("Reception");
+  await expect(
+    dialog.getByRole("combobox", { name: "Verantwortlich", exact: true }),
+  ).toHaveValue("");
+  await expect(dialog.getByLabel("Termin", { exact: true })).toHaveValue("");
+  const previewState = await (await page.request.get("/api/state")).json();
+  expect(previewState.tasks).toEqual(before.tasks);
+  await dialog
+    .getByRole("button", { name: "Dauerhaft speichern", exact: true })
+    .click();
+  await expect(dialog).toHaveCount(0);
+  await expect(
+    idea.getByRole("button", {
+      name: "Schon als Aufgabe vorhanden",
+      exact: true,
+    }),
+  ).toBeDisabled();
+  const after = await (await page.request.get("/api/state")).json();
+  const prepared = after.tasks.find(
+    (task: { title: string }) =>
+      task.title === "Foto- und Filmmomente gemeinsam auswählen",
+  );
+  expect(prepared.event).toBe("Reception");
+  expect(prepared.owner).toBe("");
+  expect(prepared.done).toBe(false);
+  expect(after.events).toEqual(before.events);
+  expect(after.providers).toEqual(before.providers);
 });

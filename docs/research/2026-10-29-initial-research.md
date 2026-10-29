@@ -45,6 +45,8 @@ Für die App sind neutrale Bausteine nützlich: Ablauf gemeinsam auswählen, bed
 
 Die neue Seite **Entdecken** enthält 14 Vorschläge, davon acht tamilisch ausgerichtete Dienstleister und sechs kulturell unabhängige Locations. Details, Quellen, Unsicherheiten und nächste Fragen stehen direkt am jeweiligen Eintrag in `src/discoveries.ts`. Filter trennen Kategorie, Berliner/Brandenburger Standort und bereits bewusst gemerkte Kontakte. Recherche öffnet keine Anfragen und erzeugt keine Angebote, Kosten oder Buchungen. Erst „Gemeinsam merken“ legt einen Kontakt mit Status `Gefunden` an.
 
+Erweiterung im folgenden Arbeitszyklus: 16 Vorschläge mit acht Locations. [BOLLE, Raumtabelle](https://bolle-events.com/eventlocation/festsaal/) und [eigene FAQ](https://bolle-events.com/faq/) belegen große Bankettbestuhlung und Cateringfreiheit samt Küche. [Stadtgut Berlin-Buch](https://stadtgut-buch.de/die-scheune/) bietet ebenfalls große Dinnerbestuhlung, bindet jedoch Catering an Kooperationspartner. Die [veröffentlichten Bedingungen](https://stadtgut-buch.de/agb/) nennen zusätzliche Sanitär- und Servicefragen bei größeren Feiern. Daher bei 200+ Personen individuell klären. Die Appfilter für Mindestbestuhlung und eigenen Caterer verwenden nur diese ausdrücklich belegten Angaben, keine angenommene Eignung einschließlich Tanzfläche und Buffet.
+
 Zusätzlich zu den oben beschriebenen Quellen wurden geprüft:
 
 - [Kalyani’s Kitchen](https://www.kalyaniskitchen.de/): eigene Chettinad-/Karaikudi-Darstellung und Catering in Berlin. Kapazität für die größte Feier unbestätigt.

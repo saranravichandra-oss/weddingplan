@@ -47,6 +47,8 @@ export default function Discover({
   const [local, setLocal] = useState(false),
     [savedOnly, setSavedOnly] = useState(false);
   const [selected, setSelected] = useState<Discovery | null>(null);
+  const [externalCatering, setExternalCatering] = useState(false);
+  const [minimumSeats, setMinimumSeats] = useState(0);
   const [saving, setSaving] = useState(""),
     [savedHere, setSavedHere] = useState<string[]>([]);
   const [error, setError] = useState(""),
@@ -59,6 +61,9 @@ export default function Discover({
       (filter === "Alle" || item.category === filter) &&
       (!local || item.local) &&
       (!savedOnly || saved(item)) &&
+      (filter !== "Location" ||
+        ((!externalCatering || item.catering === "frei") &&
+          (!minimumSeats || (item.dinnerSeats ?? 0) >= minimumSeats))) &&
       `${item.name} ${item.region} ${item.category} ${item.headline} ${item.summary}`
         .toLocaleLowerCase("de")
         .includes(search.toLocaleLowerCase("de")),
@@ -69,7 +74,7 @@ export default function Discover({
     setError("");
     const data: Partial<Provider> = {
       name: item.name,
-      category: item.category === "Dekoration" ? "Sonstiges" : item.category,
+      category: item.category,
       website: item.sources[0].url,
       region: item.region,
       status: "Gefunden",
@@ -188,6 +193,38 @@ export default function Discover({
             Nur gemerkte
           </label>
         </div>
+        {filter === "Location" && (
+          <div className="discover-venue-filters">
+            <label className="discover-check">
+              <input
+                type="checkbox"
+                checked={externalCatering}
+                onChange={(event) => setExternalCatering(event.target.checked)}
+              />
+              Eigener Caterer laut Quelle möglich
+            </label>
+            <label>
+              Sitzplätze laut Quelle
+              <select
+                value={minimumSeats}
+                onChange={(event) =>
+                  setMinimumSeats(Number(event.target.value))
+                }
+              >
+                <option value={0}>Keine Mindestzahl</option>
+                {[180, 200, 220, 250].map((count) => (
+                  <option value={count} key={count}>
+                    Mindestens {count}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <p>
+              Maximale Bestuhlung laut Website. Der Platzbedarf für Tanzfläche,
+              Buffet und eure Ausstattung muss separat bestätigt werden.
+            </p>
+          </div>
+        )}
       </section>
       <ErrorMessage message={error} />
       {notice && (
@@ -264,6 +301,8 @@ export default function Discover({
               setFilter("Alle");
               setLocal(false);
               setSavedOnly(false);
+              setExternalCatering(false);
+              setMinimumSeats(0);
             }}
           >
             Alle Vorschläge zeigen
