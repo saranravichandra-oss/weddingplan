@@ -6,6 +6,8 @@ Die Atelier-Oberfläche bietet verlinkbare Bereiche, eine Kartenübersicht und d
 
 Angebotsentwürfe werden im aktuellen Browser-Tab pro Konto wiederaufgenommen. Die unbestätigten Feldkorrekturen stehen bis zur Übernahme nur in diesem Tab; hochgeladene Originale und Auswertungen liegen bereits im gemeinsamen privaten Dokumentbereich. Bei gleichzeitigen Änderungen werden unterschiedliche Felder zusammengeführt und konkurrierende Angaben bewusst ausgewählt. Unterschiedliche Originale werden als getrennte Fassungen behandelt. Nach einer Zusammenführung ist eine erneute Prüfung nötig.
 
+Eine fehlgeschlagene Auswertung lässt sich im Prüfdialog erneut starten. Während des Neustarts bleibt das Original fest zugeordnet; manuelle Feldkorrekturen bleiben möglich. Später übernommene Erkennungsergebnisse erhalten diese Korrekturen und setzen die Prüfbestätigung zurück. Das aktuelle Ergebnis wird erst nach erneuter Bestätigung gespeichert.
+
 Auch Gäste, Aufgaben und andere Planungsformulare bieten bei parallelen Änderungen eine gemeinsame Prüfung an. Gästerückmeldungen werden je Feier zusammengeführt. Gleiche Angaben mit verschiedenen Werten benötigen eine Auswahl; die Zusammenführung allein speichert nichts. Ein inzwischen gelöschter Eintrag wird nicht automatisch wieder angelegt. Ungespeicherte Formulare warnen vor versehentlichem Schließen oder Neuladen.
 
 ## Online gemeinsam planen
