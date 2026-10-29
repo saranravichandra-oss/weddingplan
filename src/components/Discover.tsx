@@ -15,7 +15,14 @@ import { discoveries, researchDate } from "../discoveries";
 import type { Discovery } from "../discoveries";
 import { Badge, Button, Dialog, ErrorMessage } from "./ui";
 
-const filters = ["Alle", "Location", "Foto & Video", "Catering", "Dekoration"];
+const filters = [
+  "Alle",
+  "Location",
+  "Foto & Video",
+  "Catering",
+  "Dekoration",
+  "Outfits & Styling",
+];
 function host(url: string) {
   try {
     return new URL(url).hostname.replace(/^www\./, "").toLowerCase();

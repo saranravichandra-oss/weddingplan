@@ -488,7 +488,26 @@ test("researched suggestions stay separate until explicitly remembered and keep 
   await login(page);
   const before = await (await page.request.get("/api/state")).json();
   await section(page, "Entdecken");
-  await expect(page.getByRole("article")).toHaveCount(20);
+  await expect(page.getByRole("article")).toHaveCount(21);
+  await page.getByRole("button", { name: /^Outfits & Styling/ }).click();
+  await expect(page.getByRole("article")).toHaveCount(1);
+  const styling = page.getByRole("article", {
+    name: "Vithya Hair and Makeup",
+    exact: true,
+  });
+  await expect(styling).toContainText("London");
+  await expect(styling).toContainText("nicht bestätigt");
+  await expect(styling.getByRole("link", { name: /^Quelle/ })).toHaveAttribute(
+    "href",
+    "https://vithyahairandmakeup.com/about/",
+  );
+  await page
+    .getByRole("checkbox", { name: "Berlin & Brandenburg", exact: true })
+    .check();
+  await expect(page.getByRole("article")).toHaveCount(0);
+  await page
+    .getByRole("checkbox", { name: "Berlin & Brandenburg", exact: true })
+    .uncheck();
   await page.getByRole("button", { name: /^Catering/ }).click();
   await expect(page.getByRole("article")).toHaveCount(5);
   await expect(

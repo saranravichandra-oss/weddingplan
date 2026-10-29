@@ -1,7 +1,12 @@
 export type Discovery = {
   id: string;
   name: string;
-  category: "Foto & Video" | "Catering" | "Dekoration" | "Location";
+  category:
+    | "Foto & Video"
+    | "Catering"
+    | "Dekoration"
+    | "Outfits & Styling"
+    | "Location";
   region: string;
   local: boolean;
   headline: string;
@@ -284,6 +289,40 @@ export const discoveries: Discovery[] = [
       {
         title: "Eigene Cateringseite · Menüs und Leistungen",
         url: "https://nandys.de/",
+      },
+    ],
+  },
+  {
+    id: "vithya",
+    name: "Vithya Hair and Makeup",
+    category: "Outfits & Styling",
+    region: "London · internationale Einsätze",
+    local: false,
+    headline: "Tamilische Brautstylistin mit internationalem Einsatz.",
+    summary:
+      "Die eigene Website nennt Braut-Make-up und Haare sowie weltweite Kundentermine. Ein Einsatz in Berlin ist individuell zu klären.",
+    proof:
+      "Eigene Biografie bezeichnet Vithya ausdrücklich als tamilische Make-up-Artistin und nennt London als Standort.",
+    facts: [
+      ["Leistung", "Braut-Make-up und Haare"],
+      ["Standort", "London · weltweite Einsätze laut Website"],
+      ["Preis", "Individuelles Angebot offen"],
+    ],
+    attention:
+      "Kein Berliner Standort. Termin, Reise- und Übernachtungskosten sind nicht bestätigt. Saree-Drapierung, Probetermin und mehrere Looks separat klären.",
+    questions: [
+      "Ist ein Einsatz in Berlin zu unserem Termin möglich?",
+      "Was kosten Styling, Anreise und Übernachtung insgesamt?",
+      "Sind Probetermin, Saree-Drapierung, Touch-ups und Lookwechsel enthalten?",
+    ],
+    sources: [
+      {
+        title: "Eigene Biografie · tamilische Ausrichtung und Einsatzgebiet",
+        url: "https://vithyahairandmakeup.com/about/",
+      },
+      {
+        title: "Eigene Kontaktseite · Buchungsanfragen",
+        url: "https://vithyahairandmakeup.com/contact/",
       },
     ],
   },
