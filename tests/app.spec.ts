@@ -1174,7 +1174,8 @@ test("Excel mapping stays usable on a narrow phone and closing the preview saves
 
 test("renaming a celebration retains shared associations, guest responses and combined booked costs", async ({
   page,
-}) => {
+}, testInfo) => {
+  test.setTimeout(60000);
   await login(page);
   const auth = await (await page.request.get("/api/auth/me")).json();
   const headers = { "X-CSRF-Token": auth.csrf };
@@ -1219,6 +1220,7 @@ test("renaming a celebration retains shared associations, guest responses and co
     partySize: 3,
     attendance: { [event.id]: "Vorgesehen" },
   });
+  let workflowFailed = false;
   try {
     await page.reload();
     await section(page, "Veranstaltungen");
@@ -1305,16 +1307,127 @@ test("renaming a celebration retains shared associations, guest responses and co
     );
     page.once("dialog", (prompt) => prompt.accept());
     await dialog.getByRole("button", { name: "Dialog schließen" }).click();
-  } finally {
-    const latest = await (await page.request.get("/api/state")).json();
-    const current = latest.events.find(
-      (row: { id: string }) => row.id === event.id,
-    );
-    const restored = await page.request.put(`/api/records/events/${event.id}`, {
-      headers,
-      data: { ...current, name: event.name },
+    await section(page, "Dienstleister");
+    await page
+      .getByRole("button", { name: "Angebot hinzufügen", exact: true })
+      .click();
+    await page
+      .getByRole("button", { name: "Text einfügen", exact: true })
+      .click();
+    await page
+      .getByRole("textbox", { name: "Angebotstext", exact: true })
+      .fill(
+        "Anbieter: Neues Testangebot nach Umbenennung\nReception\nGesamtpreis: 2300 EUR",
+      );
+    await page
+      .getByRole("button", { name: "Text speichern und auswerten" })
+      .click();
+    await expect(
+      page.getByRole("textbox", { name: "Anbieter", exact: true }),
+    ).toHaveValue("Neues Testangebot nach Umbenennung");
+    await page
+      .getByText("Weitere Angebotsdetails und offene Punkte", { exact: true })
+      .click();
+    dialog = page.getByRole("dialog");
+    const previousName = dialog.getByRole("checkbox", {
+      name: "Reception – weitere Bezeichnung beibehalten",
+      exact: true,
     });
-    expect(restored.ok()).toBeTruthy();
+    await expect(previousName).toBeChecked();
+    await expect(
+      dialog.getByRole("checkbox", { name: "Unsere Abendfeier", exact: true }),
+    ).not.toBeChecked();
+    await page.setViewportSize({ width: 320, height: 900 });
+    await dialog
+      .locator(".event-checkboxes")
+      .screenshot({ path: testInfo.outputPath("offer-event-names-320.png") });
+    expect(
+      await dialog.evaluate(
+        (element) => element.scrollWidth <= element.clientWidth + 1,
+      ),
+    ).toBeTruthy();
+    await previousName.uncheck();
+    await expect(previousName).not.toBeChecked();
+    await previousName.check();
+    await previousName.uncheck();
+    await dialog
+      .getByRole("checkbox", { name: "Unsere Abendfeier", exact: true })
+      .check();
+    await dialog
+      .getByRole("checkbox", { name: /Ich habe Original und Angaben geprüft/ })
+      .check();
+    let release!: () => void;
+    const saving = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await page.route("**/api/records/offers", async (route) => {
+      await saving;
+      await route.continue();
+    });
+    try {
+      await dialog
+        .getByRole("button", { name: "Bestätigt in den Vergleich übernehmen" })
+        .click();
+      await expect(
+        dialog.locator('select[aria-label="Kategorie"]'),
+      ).toBeDisabled();
+      await expect(
+        dialog
+          .getByRole("status")
+          .filter({ hasText: "Geprüftes Angebot wird gespeichert" }),
+      ).toBeVisible();
+      await expect(
+        dialog.getByRole("textbox", { name: "Angebotstext", exact: true }),
+      ).toBeDisabled();
+      await expect(
+        dialog.getByRole("button", { name: "Datei hochladen", exact: true }),
+      ).toBeDisabled();
+      await expect(
+        dialog.getByRole("button", { name: "Entwurf verwerfen", exact: true }),
+      ).toBeDisabled();
+      await dialog
+        .getByRole("button", { name: "Dialog schließen", exact: true })
+        .click();
+      await page.keyboard.press("Escape");
+      await expect(dialog).toBeVisible();
+      expect(
+        await page.evaluate(() => {
+          const leaving = new Event("beforeunload", { cancelable: true });
+          window.dispatchEvent(leaving);
+          return leaving.defaultPrevented;
+        }),
+      ).toBeTruthy();
+    } finally {
+      release();
+    }
+    await expect(dialog).toHaveCount(0);
+    await page.unroute("**/api/records/offers");
+    after = await (await page.request.get("/api/state")).json();
+    const newOffer = after.offers.find(
+      (row: { name: string }) =>
+        row.name === "Neues Testangebot nach Umbenennung",
+    );
+    expect(newOffer.events).toEqual(["Unsere Abendfeier"]);
+    expect(newOffer.evidence.events[0].quote).toContain("Reception");
+    expect(newOffer.manualFields).toContain("events");
+  } catch (error) {
+    workflowFailed = true;
+    throw error;
+  } finally {
+    if (!workflowFailed) {
+      const latest = await (await page.request.get("/api/state")).json();
+      const current = latest.events.find(
+        (row: { id: string }) => row.id === event.id,
+      );
+      const restored = await page.request.put(
+        `/api/records/events/${event.id}`,
+        {
+          headers,
+          data: { ...current, name: event.name },
+        },
+      );
+      expect(restored.ok()).toBeTruthy();
+    }
   }
 });
 

@@ -183,6 +183,16 @@ function PlanningApp({
     documentId?: string;
   } | null>(null);
   const [reviewUnsaved, setReviewUnsaved] = useState(false);
+  const [reviewSaving, setReviewSaving] = useState(false);
+  useEffect(() => {
+    if (!reviewSaving) return;
+    const warn = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [reviewSaving]);
   const [booking, setBooking] = useState<Offer | null>(null);
   const [bookingError, setBookingError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -1584,6 +1594,7 @@ function PlanningApp({
           title="Original und erkannte Angaben prüfen"
           wide
           onClose={() => {
+            if (reviewSaving) return;
             if (
               reviewUnsaved &&
               !window.confirm(
@@ -1594,9 +1605,15 @@ function PlanningApp({
             setReview(null);
           }}
         >
+          {reviewSaving && (
+            <p className="inline-note" role="status">
+              Geprüftes Angebot wird gespeichert. Bitte kurz warten.
+            </p>
+          )}
           <OfferReview
             userId={user.id}
             onUnsavedChange={setReviewUnsaved}
+            onSavingChange={setReviewSaving}
             offer={review.offer}
             latestOffer={state.offers.find(
               (offer) => offer.id === review.offer?.id,

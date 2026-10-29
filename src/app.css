@@ -581,8 +581,26 @@
   align-items: center;
   gap: 8px;
   flex-direction: row;
-  font-size: 11px;
+  font-size: 14px;
+  min-height: 44px;
+  min-width: 0;
+  overflow-wrap: anywhere;
   font-weight: 400;
+}
+.unmatched-event-note {
+  margin: 0;
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--cream, #f5f0e3);
+  font-size: 13px;
+  line-height: 1.6;
+}
+.unmatched-event > span {
+  min-width: 0;
+}
+.unmatched-event small {
+  display: block;
+  font-size: 12px;
 }
 .field-source {
   font-size: 10px;

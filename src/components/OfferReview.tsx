@@ -24,6 +24,7 @@ export default function OfferReview({
   events,
   onSaved,
   onUnsavedChange,
+  onSavingChange,
 }: {
   userId: string;
   offer?: Offer;
@@ -33,6 +34,7 @@ export default function OfferReview({
   events: WeddingEvent[];
   onSaved: () => void;
   onUnsavedChange: (unsaved: boolean) => void;
+  onSavingChange: (saving: boolean) => void;
 }) {
   const draftKey = offerDraftKey(userId, offer?.id || initialDocument || "new");
   const [cached] = useState(() => readOfferDraft(draftKey));
@@ -62,6 +64,14 @@ export default function OfferReview({
     cached?.documentId || initialDocument || offer?.documentId || "",
   );
   const [doc, setDoc] = useState<Document | null>(null);
+  const otherEventNames = [
+    ...new Set([
+      ...(draft.events || []),
+      ...(offer?.events || []),
+      ...(cached?.draft?.events || []),
+      ...(doc?.analysis?.fields.events || []),
+    ]),
+  ].filter((name) => name && !events.some((event) => event.name === name));
   const [applied, setApplied] = useState(cached?.applied || "");
   const [pageNumber, setPageNumber] = useState(1);
   const [mode, setMode] = useState(cached?.mode || "file");
@@ -210,7 +220,7 @@ export default function OfferReview({
     );
   }
   async function upload(file?: File) {
-    if (!file) return;
+    if (!file || busy) return;
     if (file.size > 15 * 1024 * 1024) {
       setError("Maximal 15 MB pro Datei.");
       return;
@@ -366,6 +376,7 @@ export default function OfferReview({
           </span>
           <button
             type="button"
+            disabled={busy}
             onClick={() => {
               submitted.current = true;
               forgetOfferDraft(draftKey);
@@ -440,18 +451,23 @@ export default function OfferReview({
           <div className="offer-conflict-actions">
             {!differentSource && (
               <Button
-                disabled={merge.unresolved}
+                disabled={busy || merge.unresolved}
                 onClick={() => adopt(merge.merged, currentOffer)}
               >
                 Änderungen zusammenführen
               </Button>
             )}
-            <Button secondary onClick={() => adopt(currentOffer, currentOffer)}>
+            <Button
+              secondary
+              disabled={busy}
+              onClick={() => adopt(currentOffer, currentOffer)}
+            >
               Gemeinsame Fassung verwenden
             </Button>
             {differentSource && (
               <Button
                 secondary
+                disabled={busy}
                 onClick={() => {
                   const next = {
                     ...draft,
@@ -487,12 +503,14 @@ export default function OfferReview({
           <div className="segmented">
             <button
               aria-pressed={mode === "file"}
+              disabled={busy}
               onClick={() => setMode("file")}
             >
               Datei hochladen
             </button>
             <button
               aria-pressed={mode === "text"}
+              disabled={busy}
               onClick={() => setMode("text")}
             >
               Text einfügen
@@ -535,6 +553,7 @@ export default function OfferReview({
                 Angebotstext
                 <textarea
                   rows={9}
+                  disabled={busy}
                   value={text}
                   maxLength={200000}
                   onChange={(e) => {
@@ -593,6 +612,7 @@ export default function OfferReview({
                   {doc.error && <ErrorMessage message={doc.error} />}
                   <Button
                     secondary
+                    disabled={busy}
                     onClick={async () => {
                       try {
                         await api(`/documents/${documentId}/retry`, {
@@ -706,8 +726,10 @@ export default function OfferReview({
           className="review-form form-stack"
           onSubmit={async (e) => {
             e.preventDefault();
+            if (busy) return;
             setError("");
             setBusy(true);
+            onSavingChange(true);
             try {
               await saveRecord("offers", {
                 ...draft,
@@ -742,6 +764,7 @@ export default function OfferReview({
                 }
               }
             } finally {
+              onSavingChange(false);
               setBusy(false);
             }
           }}
@@ -767,6 +790,7 @@ export default function OfferReview({
             Kategorie
             <select
               aria-label="Kategorie"
+              disabled={busy}
               value={draft.category}
               onChange={(e) => set("category", e.target.value)}
             >
@@ -781,6 +805,7 @@ export default function OfferReview({
               Währung
               <select
                 value={draft.currency}
+                disabled={busy}
                 onChange={(e) => set("currency", e.target.value)}
               >
                 {["Nicht angegeben", "EUR", "USD", "GBP"].map((value) => (
@@ -821,6 +846,7 @@ export default function OfferReview({
                 Mit Dienstleister verknüpfen
                 <select
                   value={draft.providerId || ""}
+                  disabled={busy}
                   onChange={(e) => set("providerId", e.target.value || null)}
                 >
                   <option value="">Noch nicht zugeordnet</option>
@@ -841,6 +867,7 @@ export default function OfferReview({
                   <label key={event.id}>
                     <input
                       type="checkbox"
+                      disabled={busy}
                       checked={draft.events?.includes(event.name) || false}
                       onChange={(e) =>
                         set(
@@ -856,12 +883,43 @@ export default function OfferReview({
                     {event.name}
                   </label>
                 ))}
+                {otherEventNames.length > 0 && (
+                  <p className="unmatched-event-note" role="note">
+                    Weitere Bezeichnungen aus dem Original oder einem älteren
+                    Entwurf passen gerade zu keiner eurer Feiern. Ihr könnt sie
+                    beibehalten oder abwählen und eine aktuelle Feier auswählen.
+                  </p>
+                )}
+                {otherEventNames.map((name) => (
+                  <label className="unmatched-event" key={name}>
+                    <input
+                      type="checkbox"
+                      checked={draft.events?.includes(name) || false}
+                      disabled={busy}
+                      aria-label={`${name} – weitere Bezeichnung beibehalten`}
+                      onChange={(event) =>
+                        set(
+                          "events",
+                          event.target.checked
+                            ? [...(draft.events || []), name]
+                            : (draft.events || []).filter(
+                                (value) => value !== name,
+                              ),
+                        )
+                      }
+                    />
+                    <span>
+                      {name} <small>Original / früherer Entwurf</small>
+                    </span>
+                  </label>
+                ))}
                 {source("events")}
               </fieldset>
               <label>
                 Preisbasis
                 <select
                   value={draft.basis}
+                  disabled={busy}
                   onChange={(e) => set("basis", e.target.value)}
                 >
                   <option>Nicht angegeben</option>
@@ -891,7 +949,12 @@ export default function OfferReview({
             </div>
           </details>
           <label className="confirmation">
-            <input ref={confirmationRef} type="checkbox" required />
+            <input
+              ref={confirmationRef}
+              type="checkbox"
+              required
+              disabled={busy}
+            />
             <span>
               Ich habe Original und Angaben geprüft. Fehlendes bleibt offen.
               Optionale Extras wurden nicht zum Paketpreis addiert.
