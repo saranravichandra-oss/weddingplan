@@ -1,6 +1,7 @@
 // Conservative, local rules. No remote model calls and no inferred prices.
 export function parseAmount(value) {
   let number = value.replace(/[\s\u00a0']/g, "");
+  number = number.replace(/[,.][-–—−]$/, "");
   if (/^\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?$/.test(number))
     number = number.replaceAll(".", "").replace(",", ".");
   else if (/^\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?$/.test(number))
@@ -22,7 +23,9 @@ const currencies = {
 };
 function moneyIn(line) {
   const matches = [
-    ...line.matchAll(/(\d[\d .,'\u00a0]*?)\s*(€|EUR|USD|GBP|\$|£)(?![a-z])/gi),
+    ...line.matchAll(
+      /(\d[\d .,'\u00a0]*?(?:[-–—−])?)\s*(€|EUR|USD|GBP|\$|£)(?![a-z])/gi,
+    ),
   ];
   return matches
     .map((m) => ({
@@ -45,6 +48,20 @@ export function extractOffer(pages) {
   );
   // PDF tables often split a label and its value across separate text rows.
   // Keep the original quote while also exposing a logical label:value pair.
+  const nameLabels = [
+    "Anbieter",
+    "Anbietername",
+    "Dienstleister",
+    "Studio",
+    "Company",
+    "Vendor",
+    "Firma",
+    "Caterer",
+    "Restaurant",
+    "Angebot von",
+  ];
+  const sectionHeadings =
+    /^(?:leistungsumfang|leistungen|enthaltene leistungen|inklusivleistungen|inklusive folgender leistungen|fotografie|photography|videografie|videography|bearbeitungs[-\s]*(?:und\s+)?lieferzeiten|bearbeitungs-\s*und\s*lieferzeiten|lieferzeiten|preisübersicht|preise|kontakt|zahlungsbedingungen|optionale (?:leistungen|zusatzleistungen)|nicht enthalten)\s*:?$/i;
   const labels = [
     "Geplante Aufnahmezeit",
     "Veranstaltungsdatum",
@@ -70,13 +87,14 @@ export function extractOffer(pages) {
     "Team",
     "Datum",
   ];
+  const allLabels = [...labels, ...nameLabels];
   const labelPattern = new RegExp(
     "^(" + labels.join("|") + ")(?:\\s*:\\s*|\\s+)(.+)$",
     "i",
   );
   const lines = originalLines.flatMap((item, index) => {
     item = { ...item, originalIndex: index };
-    const label = labels.find(
+    const label = allLabels.find(
       (label) =>
         item.line.replace(/[:\s]+$/, "").toLowerCase() === label.toLowerCase(),
     );
@@ -85,7 +103,14 @@ export function extractOffer(pages) {
       if (
         next &&
         next.page === item.page &&
-        !labels.some((l) => next.line.toLowerCase() === l.toLowerCase())
+        !allLabels.some((l) =>
+          new RegExp(
+            "^" + l + (nameLabels.includes(l) ? "(?:\\s*:|$)" : "(?:\\s|:|$)"),
+            "i",
+          ).test(next.line),
+        ) &&
+        !sectionHeadings.test(next.line) &&
+        !(nameLabels.includes(label) && moneyIn(next.line).length)
       )
         return [
           item,
@@ -120,11 +145,10 @@ export function extractOffer(pages) {
         `Mehrere Angaben zu „${field}“ gefunden. Bitte manuell prüfen.`,
       );
   }
-  choose(
-    "name",
-    /^(?:anbieter|dienstleister|studio|company|vendor)\s*:\s*(.{2,200})$/i,
-  );
-  if (!fields.name) {
+  const providerPattern =
+    /^(?:anbieter|anbietername|dienstleister|studio|company|vendor|firma|caterer|restaurant|angebot von)\s*:\s*(.{2,200})$/i;
+  choose("name", providerPattern);
+  if (!fields.name && !lines.some((item) => providerPattern.test(item.line))) {
     const businesses = originalLines.flatMap((item) => {
       const match = item.line.match(
         /^([\p{L}\d&'.-]+(?:\s+[\p{L}\d&'.-]+){0,4}\s+(?:videography|photography|media|films?|studio|fotostudio))\b/iu,
@@ -308,8 +332,6 @@ export function extractOffer(pages) {
   );
   choose("venue", /^(?:veranstaltungsort|location)\s*:\s*(.+)$/i);
   choose("guestCount", /^(?:gästeanzahl|anzahl gäste)\s*:\s*(.+)$/i);
-  const sectionHeadings =
-    /^(?:leistungsumfang|fotografie|photography|videografie|videography|bearbeitungs[-\s]*(?:und\s+)?lieferzeiten|bearbeitungs-\s*und\s*lieferzeiten|lieferzeiten|preisübersicht|preise|kontakt|zahlungsbedingungen|optionale (?:leistungen|zusatzleistungen)|nicht enthalten)\s*:?$/i;
   function section(field, heading) {
     if (fields[field]) return;
     const start = originalLines.findIndex((item) => heading.test(item.line));
@@ -318,7 +340,14 @@ export function extractOffer(pages) {
       content = [];
     for (let i = start + 1; i < originalLines.length; i++) {
       const item = originalLines[i];
-      if (item.page !== first.page || sectionHeadings.test(item.line)) break;
+      if (
+        item.page !== first.page ||
+        sectionHeadings.test(item.line) ||
+        /^(?:gesamtpreis|gesamtbetrag|angebotssumme|paketpreis)(?:\s*:|\s|$)/i.test(
+          item.line,
+        )
+      )
+        break;
       content.push(item.line);
     }
     if (content.length)
@@ -327,7 +356,13 @@ export function extractOffer(pages) {
         quote: [first.line, ...content].join("\n").slice(0, 2000),
       });
   }
-  section("included", /^leistungsumfang\s*:?$/i);
+  section(
+    "included",
+    /^(?:leistungsumfang|leistungen|enthaltene leistungen|inklusivleistungen|inklusive folgender leistungen)\s*:?$/i,
+  );
+  section("excluded", /^nicht enthalten\s*:?$/i);
+  section("optional", /^optionale (?:leistungen|zusatzleistungen)\s*:?$/i);
+  section("paymentTerms", /^zahlungsbedingungen\s*:?$/i);
   section("photos", /^(?:fotografie|photography)\s*:?$/i);
   section("video", /^(?:videografie|videography)\s*:?$/i);
   section(

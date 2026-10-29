@@ -11,6 +11,76 @@ test("German and English amounts preserve cents without treating unknown as zero
   assert.equal(parseAmount("unbekannt"), null);
   assert.equal(parseAmount("0,00"), 0);
 });
+
+test("German whole-euro dash notation preserves the amount without accepting negative or incomplete numbers", () => {
+  for (const value of ["2.500,-", "2.500,–", "2.500, —", "2.500.−"])
+    assert.equal(parseAmount(value), 2500, value);
+  assert.equal(parseAmount("159,–"), 159);
+  assert.equal(parseAmount("1000-"), null);
+  assert.equal(parseAmount("-1000"), null);
+  assert.equal(extract("Gesamtpreis: 2.500,– EUR brutto").fields.price, 2500);
+  const unit = extract("Paketpreis: 159,– € pro Person");
+  assert.equal(unit.fields.price, undefined);
+  assert.match(unit.fields.pricingNotes, /159,–/);
+});
+
+test("catering and decoration offers retain explicit provider labels and separated scope sections", () => {
+  const result = extract(`Firma
+Beispiel Festservice GmbH
+Enthaltene Leistungen:
+Buffet für 200 Personen
+Servicepersonal für sechs Stunden
+Nicht enthalten:
+Getränke
+Optionale Leistungen:
+Zusätzliche Deko
+Zahlungsbedingungen:
+30 % bei Bestätigung
+Preisübersicht
+Gesamtpreis
+2.500,- € brutto`);
+  assert.equal(result.fields.name, "Beispiel Festservice GmbH");
+  assert.equal(result.fields.price, 2500);
+  assert.equal(result.fields.basis, "Brutto");
+  assert.equal(
+    result.fields.included,
+    "Buffet für 200 Personen\nServicepersonal für sechs Stunden",
+  );
+  assert.equal(result.fields.excluded, "Getränke");
+  assert.equal(result.fields.optional, "Zusätzliche Deko");
+  assert.equal(result.fields.paymentTerms, "30 % bei Bestätigung");
+  assert.match(result.evidence.name[0].quote, /Firma\nBeispiel/);
+  for (const label of ["Caterer", "Restaurant", "Angebot von", "Anbietername"])
+    assert.equal(
+      extract(`${label}: Beispiel Dienstleistung`).fields.name,
+      "Beispiel Dienstleistung",
+    );
+});
+
+test("empty provider labels never consume the next price label or a service heading", () => {
+  for (const next of [
+    "Gesamtpreis: 1.000 EUR",
+    "Gesamtpreis:\n1.000 EUR",
+    "Enthaltene Leistungen:\nBuffet für 200 Personen",
+  ]) {
+    assert.equal(extract(`Firma:\n${next}`).fields.name, undefined, next);
+  }
+  assert.equal(
+    extract("Firma: Beispiel Küche\nAnbieter: Anderer Festservice").fields.name,
+    undefined,
+  );
+  assert.equal(
+    extract(
+      "Firma: Beispiel Photography\nAnbieter: Anderer Festservice\nBeispiel Photography",
+    ).fields.name,
+    undefined,
+  );
+  assert.equal(
+    extract("Firma:\nStudio Beispiel").fields.name,
+    "Studio Beispiel",
+  );
+  assert.equal(extract("Firma:\nDatum 17.05.2027").fields.name, undefined);
+});
 test("deposit, balance and optional extras never become a total", () => {
   const result = extract(
     "Anbieter: Teststudio\nAnzahlung: 500 EUR\nRestbetrag: 1500 EUR\nOptional: Album 250 EUR\nZusatzstunde: 200 EUR",

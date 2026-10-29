@@ -143,6 +143,92 @@ test("text extraction proposes values with source evidence; confirmed unknown pr
     page.locator(".stat").filter({ hasText: "Bekannt beauftragt" }),
   ).toContainText("1.000");
 });
+test("catering text is reviewed with its stated total and separate scope on mobile", async ({
+  page,
+}, testInfo) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await login(page);
+  await page
+    .getByRole("button", { name: "Angebot hinzufügen", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Text einfügen", exact: true })
+    .click();
+  await page
+    .getByRole("textbox", { name: "Angebotstext", exact: true })
+    .fill(
+      "Caterer:\nBrowser-Festservice\nEnthaltene Leistungen:\nBuffet für 200 Personen\nService für sechs Stunden\nNicht enthalten:\nGetränke\nOptionale Leistungen:\nZusätzliche Deko\nZahlungsbedingungen:\n30 % bei Bestätigung\nGesamtpreis: 2.500,– EUR brutto",
+    );
+  await page
+    .getByRole("button", { name: "Text speichern und auswerten" })
+    .click();
+  await expect(
+    page.getByRole("textbox", { name: "Anbieter", exact: true }),
+  ).toHaveValue("Browser-Festservice");
+  await expect(
+    page.getByRole("spinbutton", { name: "Gesamtpreis", exact: true }),
+  ).toHaveValue("2500");
+  await page
+    .getByText("Weitere Angebotsdetails und offene Punkte", { exact: true })
+    .click();
+  await expect(
+    page.getByRole("textbox", { name: "Zahlungsbedingungen", exact: true }),
+  ).toHaveValue("30 % bei Bestätigung");
+  await expect(
+    page.getByRole("textbox", {
+      name: "Enthaltene Leistungen",
+      exact: true,
+    }),
+  ).toHaveValue("Buffet für 200 Personen\nService für sechs Stunden");
+  await expect(
+    page.getByRole("textbox", {
+      name: "Ausdrücklich nicht enthalten",
+      exact: true,
+    }),
+  ).toHaveValue("Getränke");
+  await page.getByLabel("Kategorie", { exact: true }).selectOption("Catering");
+  await expect(
+    page.getByRole("textbox", {
+      name: "Fotografie: Leistungsumfang",
+      exact: true,
+    }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("textbox", {
+      name: "Videografie: Leistungsumfang",
+      exact: true,
+    }),
+  ).toHaveCount(0);
+  await page
+    .getByRole("checkbox", { name: /Ich habe Original und Angaben geprüft/ })
+    .check();
+  await page
+    .getByRole("button", { name: "Bestätigt in den Vergleich übernehmen" })
+    .click();
+  await section(page, "Dienstleister");
+  const card = page.getByRole("article", {
+    name: "Browser-Festservice",
+    exact: true,
+  });
+  await expect(card).toContainText("2.500");
+  await expect(card).toContainText("Buffet für 200 Personen");
+  await expect(card).toContainText("Getränke");
+  await expect(card).toContainText("Zusätzliche Deko");
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBeTruthy();
+  await page.screenshot({
+    path: testInfo.outputPath("catering-mobile.png"),
+    fullPage: true,
+  });
+  await page.reload();
+  await expect(
+    page.getByRole("article", { name: "Browser-Festservice", exact: true }),
+  ).toContainText("Buffet für 200 Personen");
+});
+
 test("actual screenshot OCR fills a price and keeps its page source", async ({
   page,
 }) => {

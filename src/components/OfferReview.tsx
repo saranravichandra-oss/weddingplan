@@ -763,6 +763,18 @@ export default function OfferReview({
             />
             {source("name")}
           </label>
+          <label>
+            Kategorie
+            <select
+              aria-label="Kategorie"
+              value={draft.category}
+              onChange={(e) => set("category", e.target.value)}
+            >
+              {categories.map((category) => (
+                <option key={category}>{category}</option>
+              ))}
+            </select>
+          </label>
           <div className="form-grid">
             {input("price", "Gesamtpreis", "number")}
             <label>
@@ -789,8 +801,11 @@ export default function OfferReview({
               {source("pricingNotes")}
             </div>
           )}
-          {area("photos", "Fotografie: Leistungsumfang")}
-          {area("video", "Videografie: Leistungsumfang")}
+          {area("included", "Enthaltene Leistungen")}
+          {(draft.category === "Foto & Video" || draft.photos) &&
+            area("photos", "Fotografie: Leistungsumfang")}
+          {(draft.category === "Foto & Video" || draft.video) &&
+            area("video", "Videografie: Leistungsumfang")}
           {area("delivery", "Bearbeitungs- und Lieferzeiten")}
           {area("extras", "Fahrt, Übernachtung & Nebenkosten")}
           <div className="form-grid">
@@ -819,20 +834,7 @@ export default function OfferReview({
                   Mehrere Fassungen desselben Dienstleisters bleiben zusammen.
                 </small>
               </label>
-              <div className="form-grid">
-                <label>
-                  Kategorie
-                  <select
-                    value={draft.category}
-                    onChange={(e) => set("category", e.target.value)}
-                  >
-                    {categories.map((category) => (
-                      <option key={category}>{category}</option>
-                    ))}
-                  </select>
-                </label>
-                {input("packageName", "Paket / Fassung")}
-              </div>
+              {input("packageName", "Paket / Fassung")}
               <fieldset className="event-checkboxes">
                 <legend>Abgedeckte Veranstaltungen</legend>
                 {events.map((event) => (
@@ -878,7 +880,6 @@ export default function OfferReview({
               </div>
               {input("offerDate", "Angebotsdatum")}
               {input("validity", "Gültigkeit")}
-              {area("included", "Weitere enthaltene Leistungen")}
               {area("excluded", "Ausdrücklich nicht enthalten")}
               {area("optional", "Optionale Zusatzleistungen & Preise")}
               {area("paymentTerms", "Zahlungsbedingungen")}
