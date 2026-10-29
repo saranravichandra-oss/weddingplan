@@ -174,6 +174,10 @@ function PlanningApp({
     kind: Exclude<Kind, "offers">;
     record?: Record<string, unknown> & Partial<Stored>;
   } | null>(null);
+  const [editorActivity, setEditorActivity] = useState({
+    dirty: false,
+    saving: false,
+  });
   const [review, setReview] = useState<{
     offer?: Offer;
     documentId?: string;
@@ -247,11 +251,13 @@ function PlanningApp({
     setSearch("");
     window.scrollTo({ top: 0 });
   };
-  const edit = (kind: Exclude<Kind, "offers">, record?: object) =>
+  const edit = (kind: Exclude<Kind, "offers">, record?: object) => {
+    setEditorActivity({ dirty: false, saving: false });
     setEditor({
       kind,
       record: record as (Record<string, unknown> & Partial<Stored>) | undefined,
     });
+  };
   const saved = async () => {
     setEditor(null);
     setReview(null);
@@ -1536,13 +1542,23 @@ function PlanningApp({
                   ? "Eintrag bearbeiten"
                   : "Neuen Eintrag anlegen"
           }
-          onClose={() => setEditor(null)}
+          onClose={() => {
+            if (editorActivity.saving) return;
+            if (
+              editorActivity.dirty &&
+              !window.confirm("Ungespeicherte Änderungen verwerfen?")
+            )
+              return;
+            setEditor(null);
+            setEditorActivity({ dirty: false, saving: false });
+          }}
         >
           <RecordEditor
             kind={editor.kind}
             record={editor.record}
             state={state}
             onSaved={() => void saved()}
+            onStatusChange={setEditorActivity}
           />
         </Dialog>
       )}

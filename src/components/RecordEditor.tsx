@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { saveRecord } from "../api";
 import { categories } from "../data";
@@ -10,14 +10,36 @@ export default function RecordEditor({
   record,
   state,
   onSaved,
+  onStatusChange,
 }: {
   kind: Exclude<Kind, "offers">;
   record?: Record<string, unknown> & Partial<Stored>;
   state: AppState;
   onSaved: () => void;
+  onStatusChange: (status: { dirty: boolean; saving: boolean }) => void;
 }) {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const form = useRef<HTMLFormElement>(null);
+  const initial = useRef("");
+  useLayoutEffect(() => {
+    if (form.current)
+      initial.current = JSON.stringify([...new FormData(form.current)]);
+  }, []);
+  useEffect(
+    () => onStatusChange({ dirty, saving: busy }),
+    [dirty, busy, onStatusChange],
+  );
+  useEffect(() => {
+    if (!dirty && !busy) return;
+    const warn = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty, busy]);
   const value = (key: string, fallback: string | number = "") =>
     String(record?.[key] ?? fallback);
   const field = (
@@ -30,6 +52,7 @@ export default function RecordEditor({
       {label}
       <input
         name={key}
+        disabled={busy}
         type={type}
         required={required}
         defaultValue={value(key)}
@@ -44,6 +67,7 @@ export default function RecordEditor({
       {label}
       <textarea
         name={key}
+        disabled={busy}
         defaultValue={value(key)}
         rows={3}
         maxLength={4000}
@@ -58,7 +82,7 @@ export default function RecordEditor({
   ) => (
     <label key={key}>
       {label}
-      <select name={key} defaultValue={value(key, fallback)}>
+      <select name={key} disabled={busy} defaultValue={value(key, fallback)}>
         {options.map((option) => (
           <option key={option} value={option}>
             {option || "Noch offen"}
@@ -77,6 +101,7 @@ export default function RecordEditor({
   const eventSelect = select("event", "Veranstaltung", eventOptions);
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (busy) return;
     setBusy(true);
     setError("");
     const fields = Object.fromEntries(new FormData(e.currentTarget));
@@ -108,6 +133,8 @@ export default function RecordEditor({
     }
     try {
       await saveRecord(kind, data);
+      setDirty(false);
+      onStatusChange({ dirty: false, saving: false });
       onSaved();
     } catch (error) {
       setError((error as Error).message);
@@ -116,7 +143,18 @@ export default function RecordEditor({
     }
   }
   return (
-    <form className="form-stack" onSubmit={submit}>
+    <form
+      ref={form}
+      className="form-stack"
+      onSubmit={submit}
+      aria-busy={busy}
+      onChange={() => {
+        if (form.current)
+          setDirty(
+            JSON.stringify([...new FormData(form.current)]) !== initial.current,
+          );
+      }}
+    >
       {kind === "providers" && (
         <>
           {field("name", "Name", "text", true)}
@@ -156,7 +194,7 @@ export default function RecordEditor({
           )}
           <label>
             Verantwortlich
-            <select name="owner" defaultValue={value("owner")}>
+            <select name="owner" disabled={busy} defaultValue={value("owner")}>
               <option value="">Noch offen</option>
               {state.members.map((member) => (
                 <option key={member.id} value={member.id}>
@@ -228,6 +266,7 @@ export default function RecordEditor({
             Anzahl Personen
             <input
               name="partySize"
+              disabled={busy}
               type="number"
               min={1}
               max={1000}
@@ -251,6 +290,7 @@ export default function RecordEditor({
               {event.name}: Einladung & Rückmeldung
               <select
                 name={"attendance-" + event.id}
+                disabled={busy}
                 defaultValue={
                   (record?.attendance as Record<string, string>)?.[event.id] ||
                   "Nicht eingeladen"
@@ -268,6 +308,12 @@ export default function RecordEditor({
         </>
       )}
       <ErrorMessage message={error} />
+      {dirty && (
+        <small role="status">
+          Noch nicht gespeichert. Erst „Dauerhaft speichern“ übernimmt eure
+          Änderungen.
+        </small>
+      )}
       <Button type="submit" disabled={busy}>
         {busy ? "Wird gespeichert …" : "Dauerhaft speichern"}
       </Button>

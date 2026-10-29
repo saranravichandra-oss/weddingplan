@@ -1303,6 +1303,7 @@ test("renaming a celebration retains shared associations, guest responses and co
     await expect(dialog.getByRole("alert")).toContainText(
       "Veranstaltungsnamen gibt es bereits",
     );
+    page.once("dialog", (prompt) => prompt.accept());
     await dialog.getByRole("button", { name: "Dialog schließen" }).click();
   } finally {
     const latest = await (await page.request.get("/api/state")).json();
@@ -1315,4 +1316,108 @@ test("renaming a celebration retains shared associations, guest responses and co
     });
     expect(restored.ok()).toBeTruthy();
   }
+});
+
+test("unsaved planning edits survive canceled close and reload, and cannot be closed during a save", async ({
+  page,
+}) => {
+  test.setTimeout(45000);
+  await login(page);
+  await section(page, "Aufgaben");
+  const before = await (await page.request.get("/api/state")).json();
+  await page
+    .getByRole("button", { name: "Aufgabe anlegen", exact: true })
+    .click();
+  const editor = page.getByRole("dialog");
+  await editor
+    .getByRole("textbox", { name: "Aufgabe", exact: true })
+    .fill("Geschützte Testnotiz");
+  await editor
+    .getByRole("textbox", { name: "Beschreibung", exact: true })
+    .fill(
+      "Diese Änderung darf nicht beim versehentlichen Schließen verloren gehen.",
+    );
+  await expect(editor.getByRole("status")).toContainText(
+    "Noch nicht gespeichert",
+  );
+  page.once("dialog", async (prompt) => {
+    expect(prompt.type()).toBe("confirm");
+    await prompt.dismiss();
+  });
+  await page.keyboard.press("Escape");
+  await expect(editor).toBeVisible();
+  await expect(
+    editor.getByRole("textbox", { name: "Aufgabe", exact: true }),
+  ).toHaveValue("Geschützte Testnotiz");
+  const promptPromise = page.waitForEvent("dialog");
+  const reload = page.reload({ timeout: 5000 }).catch(() => null);
+  const prompt = await promptPromise;
+  expect(prompt.type()).toBe("beforeunload");
+  await prompt.dismiss();
+  await reload;
+  await expect(editor).toBeVisible();
+  expect((await (await page.request.get("/api/state")).json()).tasks).toEqual(
+    before.tasks,
+  );
+  let release!: () => void;
+  const saving = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route("**/api/records/tasks", async (route) => {
+    await saving;
+    await route.continue();
+  });
+  try {
+    await editor
+      .getByRole("button", { name: "Dauerhaft speichern", exact: true })
+      .click();
+    await expect(
+      editor.getByRole("button", { name: "Wird gespeichert …", exact: true }),
+    ).toBeDisabled();
+    await expect(
+      editor.getByRole("textbox", { name: "Aufgabe", exact: true }),
+    ).toBeDisabled();
+    await editor
+      .getByRole("button", { name: "Dialog schließen", exact: true })
+      .click();
+    await page.keyboard.press("Escape");
+    await expect(editor).toBeVisible();
+  } finally {
+    release();
+  }
+  await expect(editor).toHaveCount(0);
+  await page.unroute("**/api/records/tasks");
+  const saved = await (await page.request.get("/api/state")).json();
+  expect(saved.tasks.length).toBe(before.tasks.length + 1);
+  expect(
+    saved.tasks.find(
+      (task: { title: string }) => task.title === "Geschützte Testnotiz",
+    ).detail,
+  ).toContain("versehentlichen Schließen");
+  await page
+    .getByRole("button", { name: "Aufgabe anlegen", exact: true })
+    .click();
+  await editor
+    .getByRole("textbox", { name: "Aufgabe", exact: true })
+    .fill("Wird zurückgenommen");
+  await editor.getByRole("textbox", { name: "Aufgabe", exact: true }).fill("");
+  await expect(editor.getByRole("status")).toHaveCount(0);
+  await editor
+    .getByRole("button", { name: "Dialog schließen", exact: true })
+    .click();
+  await expect(editor).toHaveCount(0);
+  await page
+    .getByRole("button", { name: "Aufgabe anlegen", exact: true })
+    .click();
+  await editor
+    .getByRole("textbox", { name: "Aufgabe", exact: true })
+    .fill("Bewusst verworfene Testnotiz");
+  page.once("dialog", (dialog) => dialog.accept());
+  await editor
+    .getByRole("button", { name: "Dialog schließen", exact: true })
+    .click();
+  await expect(editor).toHaveCount(0);
+  expect((await (await page.request.get("/api/state")).json()).tasks).toEqual(
+    saved.tasks,
+  );
 });
