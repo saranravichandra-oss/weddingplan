@@ -269,6 +269,40 @@ export const discoveries: Discovery[] = [
     ],
   },
   {
+    id: "sakthys",
+    name: "Event by Sakthys",
+    category: "Dekoration",
+    region: "Dortmund · Berlin-Einsatz offen",
+    local: false,
+    headline: "Tamilische Hochzeitsgestaltung aus Dortmund.",
+    summary:
+      "Eigene Hochzeitsbeispiele, individuelle Dekoration und Koordination. Einzelne Elemente können auch separat gemietet werden.",
+    proof:
+      "Die eigene Eventseite nennt tamilische Hochzeiten und zeigt eigene Gestaltungen. Die Kontaktseite bestätigt den Standort Dortmund.",
+    facts: [
+      ["Leistungen", "Dekoration, Koordination und Mietausstattung"],
+      ["Standort", "Dortmund"],
+      ["Preis", "Individuelles Angebot offen"],
+    ],
+    attention:
+      "Ein Berlin-Einsatz ist nicht bestätigt. Liefergebiet, Transport, Aufbau, Abbau und Gesamtpreis bleiben offen.",
+    questions: [
+      "Sind Lieferung und Aufbau in Berlin zu unserem Termin möglich?",
+      "Welche Elemente sind verfügbar und wie viel Platz benötigen sie?",
+      "Was kosten Miete, Transport, Personal, Abbau und Kaution insgesamt?",
+    ],
+    sources: [
+      {
+        title: "Eigene Eventleistungen und Hochzeitsbeispiele",
+        url: "https://www.sakthys.com/event.html",
+      },
+      {
+        title: "Eigener Standort und Kontakt",
+        url: "https://www.sakthys.com/kontakt.html",
+      },
+    ],
+  },
+  {
     id: "sathya",
     name: "Sathya’s Tamilische Event Management",
     category: "Catering",

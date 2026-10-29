@@ -1049,9 +1049,36 @@ test("researched suggestions stay separate until explicitly remembered and keep 
   await login(page);
   const before = await (await page.request.get("/api/state")).json();
   await section(page, "Entdecken");
-  await expect(page.getByRole("article")).toHaveCount(22);
+  await expect(page.getByRole("article")).toHaveCount(23);
   await page.getByRole("button", { name: /^Dekoration/ }).click();
-  await expect(page.getByRole("article")).toHaveCount(3);
+  await expect(page.getByRole("article")).toHaveCount(4);
+  const sakthys = page.getByRole("article", {
+    name: "Event by Sakthys",
+    exact: true,
+  });
+  await expect(sakthys).toContainText("Berlin-Einsatz ist nicht bestätigt");
+  await expect(sakthys.getByRole("link", { name: /^Quelle/ })).toHaveAttribute(
+    "href",
+    "https://www.sakthys.com/event.html",
+  );
+  await page.setViewportSize({ width: 320, height: 900 });
+  await sakthys.screenshot({ path: testInfo.outputPath("sakthys-320.png") });
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBeTruthy();
+  await sakthys.getByRole("button", { name: "Details & Fragen" }).click();
+  const sakthysDetail = page.getByRole("dialog", {
+    name: "Event by Sakthys",
+    exact: true,
+  });
+  await expect(
+    sakthysDetail.getByRole("link", { name: "Eigener Standort und Kontakt" }),
+  ).toHaveAttribute("href", "https://www.sakthys.com/kontakt.html");
+  await expect(sakthysDetail).toContainText("Kaution insgesamt");
+  await sakthysDetail.getByRole("button", { name: "Dialog schließen" }).click();
+  await page.setViewportSize({ width: 1440, height: 950 });
   const amani = page.getByRole("article", {
     name: "Amani Events",
     exact: true,
@@ -1065,6 +1092,7 @@ test("researched suggestions stay separate until explicitly remembered and keep 
     .getByRole("checkbox", { name: "Berlin & Brandenburg", exact: true })
     .check();
   await expect(amani).toHaveCount(0);
+  await expect(sakthys).toHaveCount(0);
   await page
     .getByRole("checkbox", { name: "Berlin & Brandenburg", exact: true })
     .uncheck();
