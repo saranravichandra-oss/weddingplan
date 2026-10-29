@@ -118,13 +118,40 @@ function passwordMatches(password, stored) {
 
 export function createCloudHandler(db) {
   const table = (name) => db.from("wedding_" + name);
+  const allRows = async (name, columns = "*", filters = {}) => {
+    const rows = [];
+    let cursor, expected;
+    for (;;) {
+      let operation = table(name).select(
+        columns,
+        cursor === undefined ? { count: "exact" } : undefined,
+      );
+      for (const [column, value] of Object.entries(filters))
+        operation = operation.eq(column, value);
+      if (cursor !== undefined) operation = operation.gt("id", cursor);
+      const result = await operation.order("id").limit(500);
+      const page = await query(result);
+      if (cursor === undefined && Number.isInteger(result.count))
+        expected = result.count;
+      if (!Array.isArray(page)) throw new Error("DatabaseError");
+      if (!page.length) {
+        if (expected !== undefined && rows.length < expected)
+          throw new Error("DatabaseError");
+        return rows;
+      }
+      rows.push(...page);
+      if (expected !== undefined && rows.length >= expected) return rows;
+      const next = page.at(-1).id;
+      if (next === undefined || next === cursor)
+        throw new Error("DatabaseError");
+      cursor = next;
+    }
+  };
   const list = async (kind) => {
-    const rows = await query(
-      table("records")
-        .select("*")
-        .eq("kind", kind)
-        .order("updated_at")
-        .order("id"),
+    const rows = await allRows("records", "*", { kind });
+    rows.sort(
+      (a, b) =>
+        a.updated_at.localeCompare(b.updated_at) || a.id.localeCompare(b.id),
     );
     const values = rows.map(record);
     return kind === "events"
@@ -422,12 +449,14 @@ export function createCloudHandler(db) {
             kinds.map(async (kind) => [kind, await list(kind)]),
           ),
         );
-        const docs = await query(
-          table("documents")
-            .select(
-              "id,name,mime,size,status,progress,error,created_at,created_by,uploaded",
-            )
-            .order("created_at", { ascending: false }),
+        const docs = await allRows(
+          "documents",
+          "id,name,mime,size,status,progress,error,created_at,created_by,uploaded",
+        );
+        docs.sort(
+          (a, b) =>
+            b.created_at.localeCompare(a.created_at) ||
+            a.id.localeCompare(b.id),
         );
         const members = await query(
           table("users").select("id,name,email").order("created_at"),
@@ -745,16 +774,13 @@ export function createCloudHandler(db) {
             kinds.map(async (kind) => [kind, await list(kind)]),
           ),
         );
-        const documents = await query(
-          table("documents").select(
-            "id,name,mime,size,status,analysis,created_at",
-          ),
+        const documents = await allRows(
+          "documents",
+          "id,name,mime,size,status,analysis,created_at",
         );
-        const history = await query(
-          table("history")
-            .select("record_id,kind,data,version,updated_at")
-            .order("id"),
-        );
+        const history = (
+          await allRows("history", "id,record_id,kind,data,version,updated_at")
+        ).map(({ id, ...entry }) => entry);
         return response(
           {
             format: "wedding-ss-v1",
