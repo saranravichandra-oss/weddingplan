@@ -176,6 +176,44 @@ export const discoveries: Discovery[] = [
     ],
   },
   {
+    id: "studio31",
+    name: "Studio 31",
+    category: "Foto & Video",
+    region: "Chennai · Indien · internationale Einsätze",
+    local: false,
+    headline: "Foto und Film aus Tamil Nadu als internationale Alternative.",
+    summary:
+      "Das Studio beschreibt Erfahrung mit Tamil-Nadu-Traditionen, bietet Fotografie und Hochzeitsfilme an und führt auf seiner Website ein Deutschlandportfolio.",
+    proof:
+      "Eigene Chennai-Seite mit tamilischer Hochzeitsausrichtung; eigene Hauptseite nennt weltweite Einsätze und verlinkt eine Deutschlandserie.",
+    facts: [
+      ["Leistungen", "Fotografie und Hochzeitsfilme"],
+      ["Standort", "Chennai, Tamil Nadu, Indien"],
+      ["Preis", "Individuelles Angebot offen"],
+    ],
+    attention:
+      "Kein lokaler Anbieter. Berlin-Termin, eingesetztes Team, Reise, Unterkunft und vollständiger Paketpreis sind nicht bestätigt.",
+    questions: [
+      "Ist eine Begleitung in Berlin zu unserem Termin möglich?",
+      "Welche Stunden, Teamgröße, Bildzahlen, Filmlängen und Lieferzeiten werden vereinbart?",
+      "Wie hoch ist der vollständige Preis einschließlich Reise, Unterkunft und aller Zusatzkosten?",
+    ],
+    sources: [
+      {
+        title: "Eigene Chennai-Seite · Tamil-Nadu-Ausrichtung",
+        url: "https://www.s31.in/wedding-photography-chennai",
+      },
+      {
+        title: "Eigene internationale Leistungsübersicht",
+        url: "https://www.s31.in/",
+      },
+      {
+        title: "Vom Anbieter als Deutschlandportfolio verlinkt",
+        url: "https://www.s31.in/brahmin-wedding-photography",
+      },
+    ],
+  },
+  {
     id: "nila",
     name: "Nila Decoration",
     category: "Dekoration",

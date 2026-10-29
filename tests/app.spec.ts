@@ -1054,7 +1054,47 @@ test("researched suggestions stay separate until explicitly remembered and keep 
   await login(page);
   const before = await (await page.request.get("/api/state")).json();
   await section(page, "Entdecken");
-  await expect(page.getByRole("article")).toHaveCount(23);
+  await expect(page.getByRole("article")).toHaveCount(24);
+  await page.getByRole("button", { name: /^Foto & Video/ }).click();
+  await expect(page.getByRole("article")).toHaveCount(3);
+  const studio31 = page.getByRole("article", {
+    name: "Studio 31",
+    exact: true,
+  });
+  await expect(studio31).toContainText("Kein lokaler Anbieter");
+  await expect(studio31).toContainText("nicht bestätigt");
+  await expect(studio31.getByRole("link", { name: /^Quelle/ })).toHaveAttribute(
+    "href",
+    "https://www.s31.in/wedding-photography-chennai",
+  );
+  await page.setViewportSize({ width: 320, height: 900 });
+  await studio31.screenshot({ path: testInfo.outputPath("studio31-320.png") });
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBeTruthy();
+  await studio31.getByRole("button", { name: "Details & Fragen" }).click();
+  const studioDetail = page.getByRole("dialog", {
+    name: "Studio 31",
+    exact: true,
+  });
+  await expect(
+    studioDetail.getByRole("link", {
+      name: "Vom Anbieter als Deutschlandportfolio verlinkt",
+    }),
+  ).toHaveAttribute("href", "https://www.s31.in/brahmin-wedding-photography");
+  await studioDetail
+    .getByRole("button", { name: "Dialog schließen", exact: true })
+    .click();
+  await page
+    .getByRole("checkbox", { name: "Berlin & Brandenburg", exact: true })
+    .check();
+  await expect(studio31).toHaveCount(0);
+  await page
+    .getByRole("checkbox", { name: "Berlin & Brandenburg", exact: true })
+    .uncheck();
+  await page.setViewportSize({ width: 1440, height: 950 });
   await page.getByRole("button", { name: /^Dekoration/ }).click();
   await expect(page.getByRole("article")).toHaveCount(4);
   const sakthys = page.getByRole("article", {
