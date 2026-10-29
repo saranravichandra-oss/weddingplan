@@ -4,6 +4,8 @@ Die ausgewählte Variante A als private, gemeinsam nutzbare App. React und TypeS
 
 Die Atelier-Oberfläche bietet verlinkbare Bereiche, eine Kartenübersicht und den direkten Angebotsvergleich, Excel-Gästeimport mit Familiengrößen sowie eine getrennte recherchierte Vorauswahl. Vorschläge erzeugen erst nach ausdrücklichem Merken einen Kontakt. Öffentliche Preisbausteine sind keine persönlichen Angebote und fließen nicht automatisch ins Budget ein.
 
+Auf dem Handy führen vier feste Ziele zu Übersicht, Angeboten, Gästen und Budget. „Mehr“ öffnet alle neun Planungsbereiche, einschließlich Recherche, Aufgaben, Veranstaltungen, Dokumenten und gemeinsamer Nutzung. Die kompakte Tablet-Seitenleiste behält beschriftete zugängliche Links und Tooltips.
+
 Angebotsentwürfe werden im aktuellen Browser-Tab pro Konto wiederaufgenommen. Die unbestätigten Feldkorrekturen stehen bis zur Übernahme nur in diesem Tab; hochgeladene Originale und Auswertungen liegen bereits im gemeinsamen privaten Dokumentbereich. Bei gleichzeitigen Änderungen werden unterschiedliche Felder zusammengeführt und konkurrierende Angaben bewusst ausgewählt. Unterschiedliche Originale werden als getrennte Fassungen behandelt. Nach einer Zusammenführung ist eine erneute Prüfung nötig.
 
 Eine fehlgeschlagene Auswertung lässt sich im Prüfdialog erneut starten. Während des Neustarts bleibt das Original fest zugeordnet; manuelle Feldkorrekturen bleiben möglich. Später übernommene Erkennungsergebnisse erhalten diese Korrekturen und setzen die Prüfbestätigung zurück. Das aktuelle Ergebnis wird erst nach erneuter Bestätigung gespeichert.
