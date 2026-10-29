@@ -1691,6 +1691,137 @@ test("per-person quotes retain their pricing unit and never invent a total from 
   expect(offer.evidence.pricingNotes[0].page).toBe(1);
 });
 
+test("a failed planning export stays in the app and a retry downloads the complete private JSON", async ({
+  page,
+}, testInfo) => {
+  await login(page);
+  await section(page, "Gemeinsam");
+  await page.setViewportSize({ width: 320, height: 900 });
+  const beforeUrl = page.url();
+  let attempts = 0;
+  await page.route("**/api/export", async (route) => {
+    if (++attempts === 1)
+      return route.fulfill({
+        status: 503,
+        json: { error: "Sicherung vorübergehend nicht erreichbar" },
+      });
+    if (attempts === 3)
+      return route.fulfill({
+        status: 200,
+        json: { format: "not-a-planning-backup" },
+      });
+    await route.continue();
+  });
+  const downloadControl = page
+    .getByRole("link", { name: "Planung als JSON exportieren", exact: true })
+    .or(
+      page.getByRole("button", {
+        name: "Planung als JSON exportieren",
+        exact: true,
+      }),
+    );
+  await downloadControl.click();
+  await expect(page).toHaveURL(beforeUrl);
+  await expect(
+    page.getByRole("navigation", { name: "Hauptnavigation" }),
+  ).toBeVisible();
+  await expect(page.getByRole("alert")).toContainText(
+    "Sicherung vorübergehend nicht erreichbar",
+  );
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+  await page
+    .locator(".team-card")
+    .filter({
+      has: page.getByRole("heading", { name: "Daten & Kosten", exact: true }),
+    })
+    .screenshot({ path: testInfo.outputPath("export-retry-320.png") });
+  const downloading = page.waitForEvent("download");
+  await downloadControl.click();
+  const downloaded = await downloading;
+  expect(downloaded.suggestedFilename()).toBe("wedding-ss-export.json");
+  const { readFile } = await import("node:fs/promises");
+  const payload = JSON.parse(
+    await readFile((await downloaded.path())!, "utf8"),
+  );
+  expect(payload.format).toBe("wedding-ss-v1");
+  for (const key of ["guests", "offers", "history", "documents"])
+    expect(Array.isArray(payload[key])).toBe(true);
+  expect(payload.users).toBeUndefined();
+  expect(payload.sessions).toBeUndefined();
+  await expect(page).toHaveURL(beforeUrl);
+  await expect(page.getByRole("alert")).toHaveCount(0);
+  const unexpectedDownloads: unknown[] = [];
+  page.on("download", (download) => unexpectedDownloads.push(download));
+  await downloadControl.click();
+  await expect(page.getByRole("alert")).toContainText(
+    "Die Sicherung konnte nicht bestätigt werden",
+  );
+  await expect(page.getByText(/^Export erstellt\./)).toHaveCount(0);
+  expect(unexpectedDownloads).toHaveLength(0);
+});
+
+test("a pending export cannot run twice and never downloads after its account signs out", async ({
+  page,
+}) => {
+  await login(page);
+  await section(page, "Gemeinsam");
+  let release!: () => void;
+  let captured!: () => void;
+  const stored = new Promise<void>((resolve) => {
+    captured = resolve;
+  });
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let attempts = 0;
+  const downloads: unknown[] = [];
+  page.on("download", (download) => downloads.push(download));
+  await page.route("**/api/export", async (route) => {
+    ++attempts;
+    const actual = await route.fetch();
+    captured();
+    await gate;
+    await route.fulfill({ response: actual });
+  });
+  await page
+    .getByRole("button", { name: "Planung als JSON exportieren", exact: true })
+    .click();
+  await stored;
+  const returned = page.waitForResponse((response) =>
+    response.url().endsWith("/api/export"),
+  );
+  try {
+    await expect(
+      page.getByRole("button", { name: "Export wird erstellt …", exact: true }),
+    ).toBeDisabled();
+    await expect(
+      page.getByLabel("Bisheriges Passwort", { exact: true }),
+    ).toBeDisabled();
+    await page
+      .locator(".sidebar")
+      .getByRole("button", { name: "Abmelden", exact: true })
+      .click();
+    await expect(
+      page.getByRole("textbox", { name: "E-Mail als Anmeldename" }),
+    ).toBeVisible();
+  } finally {
+    release();
+  }
+  await (await returned).finished();
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+      ),
+  );
+  expect(downloads).toHaveLength(0);
+  expect(attempts).toBe(1);
+});
+
 test("account connection retries recover an invitation form and a failed invitation keeps entered values", async ({
   page,
 }) => {

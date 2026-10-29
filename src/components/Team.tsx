@@ -8,7 +8,7 @@ import {
   SignOut,
   Users,
 } from "@phosphor-icons/react";
-import { api, json, setCsrf } from "../api";
+import { api, currentSessionVersion, json, setCsrf } from "../api";
 import type { Auth } from "../api";
 import type { AppState, User } from "../data";
 import { Badge, Button, ErrorMessage, Heading, Title } from "./ui";
@@ -30,7 +30,10 @@ export default function Team({
   const [passwordError, setPasswordError] = useState("");
   const [passwordMessage, setPasswordMessage] = useState("");
   const [passwordBusy, setPasswordBusy] = useState(false);
-  const accountBusy = !!inviteBusy || passwordBusy;
+  const [exportBusy, setExportBusy] = useState(false);
+  const [exportError, setExportError] = useState("");
+  const [exportMessage, setExportMessage] = useState("");
+  const accountBusy = !!inviteBusy || passwordBusy || exportBusy;
   const inviteExpired = !!invite && expires <= Date.now();
   async function createInvitation() {
     if (accountBusy) return;
@@ -69,6 +72,40 @@ export default function Team({
       );
     } finally {
       setInviteBusy("");
+    }
+  }
+  async function exportPlanning() {
+    if (accountBusy) return;
+    const startedSession = currentSessionVersion();
+    setExportBusy(true);
+    setExportError("");
+    setExportMessage("");
+    try {
+      const data = await api<{ format?: string }>("/export");
+      if (startedSession !== currentSessionVersion()) return;
+      if (data?.format !== "wedding-ss-v1")
+        throw new Error(
+          "Die Sicherung konnte nicht bestätigt werden. Bitte erneut versuchen.",
+        );
+      const url = URL.createObjectURL(
+        new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }),
+      );
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "wedding-ss-export.json";
+      link.hidden = true;
+      document.body.append(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      setExportMessage(
+        "Export erstellt. Bitte prüft die Datei in euren Downloads. Originale separat herunterladen.",
+      );
+    } catch (error) {
+      if (startedSession === currentSessionVersion())
+        setExportError((error as Error).message);
+    } finally {
+      setExportBusy(false);
     }
   }
   return (
@@ -237,9 +274,27 @@ export default function Team({
               </>
             )}
           </p>
-          <a href="/api/export" className="button secondary">
-            <DownloadSimple size={18} /> Planung als JSON exportieren
-          </a>
+          <Button
+            secondary
+            onClick={() => void exportPlanning()}
+            disabled={accountBusy}
+          >
+            <DownloadSimple size={18} />{" "}
+            {exportBusy
+              ? "Export wird erstellt …"
+              : "Planung als JSON exportieren"}
+          </Button>
+          <ErrorMessage message={exportError} />
+          {exportBusy && (
+            <p role="status" className="inline-note">
+              Die Sicherung wird zusammengestellt. Bitte kurz warten …
+            </p>
+          )}
+          {exportMessage && (
+            <p role="status" className="inline-note">
+              {exportMessage}
+            </p>
+          )}
         </section>
         <section className="panel team-card">
           <Heading title="Dein Passwort ändern" />

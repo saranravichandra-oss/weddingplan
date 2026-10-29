@@ -22,6 +22,8 @@ Die Planung wird außerdem beim Zurückwechseln in den Tab aktualisiert. Verspä
 
 Nach einem erfolgreichen Passwortwechsel werden verspätete Antworten der vorherigen Sitzung nicht mehr auf die erneuerte Anmeldung angewandt. Wird die aktuelle Sitzung vom Server abgewiesen, führt die App weiterhin zur Anmeldung zurück. Die serverseitige Sitzungs- und CSRF-Prüfung bleibt bei jeder Anfrage maßgeblich.
 
+Unter **Gemeinsam → Daten & Kosten** erstellt der Exportknopf eine JSON-Datei, ohne die Planung zu verlassen. Fehler bleiben beim Knopf sichtbar und können erneut versucht werden. Ungültige Sicherungsantworten werden nicht als Datei heruntergeladen. Trifft ein Export erst nach dem Abmelden ein, verwirft der Browser-Client die Antwort. Originaldateien bleiben separat herunterzuladen.
+
 Die Bereitstellung benötigt Vercel **Hobby** und Supabase **Free**, ohne Upgrade oder kostenpflichtige Zusatzdienste. Die App begrenzt Dokumente auf 750 MB insgesamt und 15 MB pro Datei. Anbieterlimits gelten zusätzlich; kostenlose Projekte können bei Inaktivität pausieren oder beim Erreichen von Freigrenzen eingeschränkt werden. Es wird keine unbegrenzte Verfügbarkeit zugesichert. Exporte und Originale regelmäßig privat sichern.
 
 `npm run build:cloud` baut nach `dist-cloud`, der lokale Build bleibt in `dist`. Vercel erhält nur `WEDDING_BACKEND_URL` und den öffentlichen `WEDDING_BACKEND_PUBLIC_KEY`. Der Supabase-Administrationsschlüssel bleibt ausschließlich in der Edge-Runtime. Alle Anwendungstabellen haben RLS, direkten anonymen Zugriff und öffentliche Originale gibt es nicht. Produktionsadressen werden in `wedding_config.allowed_origins` ausdrücklich freigegeben.
