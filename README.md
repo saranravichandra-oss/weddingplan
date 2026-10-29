@@ -74,6 +74,8 @@ Unter **Gäste → Excel importieren** lassen sich `.xlsx`-Dateien bis 2 MB einl
 
 Familien können als Gruppe mit ihrer Personenzahl übernommen werden. Es werden keine erfundenen Einzelpersonen angelegt. „x“ wird als **Vorgesehen** behandelt, ausdrücklich genannte Zusagen/Absagen getrennt je zugeordneter Veranstaltung. Fehlende Zuordnungen bleiben **Nicht angegeben**. Namensgleichheiten werden angezeigt und standardmäßig ausgelassen; ein gleicher Name ist kein sicherer Identitätsnachweis. Bestehende Einträge werden nicht überschrieben. Der Sammelimport wird transaktional gespeichert und kann nach einer unterbrochenen Antwort ohne doppelte Einträge wiederholt werden.
 
+Beim Speichern bleiben Dialog, Datei, Auswahl und Spaltenzuordnung fest; versehentliches Schließen oder Neuladen wird abgefangen. Fehlt eine verlässliche Antwort, kann derselbe Import ausdrücklich erneut bestätigt werden. Die Vorschau bleibt auch bei einer Hintergrundaktualisierung unverändert. Bereits übernommene Zeilen dieses Vorgangs werden nicht nochmals angelegt. „Zur Vorschau zurück“ erlaubt eine erneute Prüfung mit dem normalen Dublettenschutz. Die bereits gelesene Arbeitsmappe bleibt für die Vorschau erhalten.
+
 Die Szenario- und Budgetannahmen ändern sich durch einen Gästeimport nicht automatisch. Bei einer Gruppenrückmeldung zählt die angegebene Personenzahl für die gesamte Gruppe; bei unterschiedlichen Rückmeldungen die Gruppe entsprechend in Einträge aufteilen.
 
 ## Angebotsauswertung ohne API-Kosten

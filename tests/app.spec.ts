@@ -734,6 +734,242 @@ test("Excel guest import previews households, preserves open responses and skips
   await page.getByRole("button", { name: "Dialog schließen" }).click();
 });
 
+test("pending guest imports keep their preview locked and recover with the same batch after a failure", async ({
+  page,
+}, testInfo) => {
+  await login(page);
+  await section(page, "Gäste");
+  await page.setViewportSize({ width: 320, height: 900 });
+  await page
+    .getByRole("button", { name: "Excel importieren", exact: true })
+    .click();
+  const importer = page.getByRole("dialog", {
+    name: "Gästeliste aus Excel übernehmen",
+    exact: true,
+  });
+  await page.getByLabel("Excel-Gästeliste auswählen").setInputFiles({
+    name: "pending-import.xlsx",
+    mimeType:
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    buffer: guestWorkbook([
+      ["Name", "Anz."],
+      ["Pending Import Group", 2],
+      ["Pending Import Person", 1],
+    ]),
+  });
+  const submit = importer.getByRole("button", {
+    name: "2 Einträge mit 3 Personen importieren",
+    exact: true,
+  });
+  await expect(submit).toBeEnabled();
+  const before = await (await page.request.get("/api/state")).json();
+  let release!: () => void;
+  let capture!: () => void;
+  let attempt = 0;
+  const batches: { batchId: string; rows: unknown[] }[] = [];
+  let captured = Promise.resolve();
+  function hold() {
+    captured = new Promise<void>((resolve) => {
+      capture = resolve;
+    });
+  }
+  await page.route("**/api/guests/import", async (route) => {
+    batches.push(route.request().postDataJSON());
+    ++attempt;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    capture();
+    await gate;
+    if (attempt === 1)
+      return route.fulfill({
+        status: 503,
+        json: { error: "Testverbindung unterbrochen" },
+      });
+    await route.continue();
+  });
+  hold();
+  await submit.click();
+  await captured;
+  try {
+    await importer
+      .getByRole("button", { name: "Dialog schließen", exact: true })
+      .click();
+    expect(await importer.isVisible()).toBe(true);
+    await page.keyboard.press("Escape");
+    expect(await importer.isVisible()).toBe(true);
+    for (const control of await importer.locator("input,select").all())
+      await expect(control).toBeDisabled();
+    const prevented = await page.evaluate(() => {
+      const event = new Event("beforeunload", { cancelable: true });
+      window.dispatchEvent(event);
+      return event.defaultPrevented;
+    });
+    expect(prevented).toBe(true);
+    await expect(
+      importer
+        .getByRole("status")
+        .filter({ hasText: "Gäste werden gespeichert" }),
+    ).toBeVisible();
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true);
+    await importer.screenshot({
+      path: testInfo.outputPath("pending-import-320.png"),
+    });
+  } finally {
+    release();
+  }
+  await expect(importer.getByRole("alert")).toContainText(
+    "Testverbindung unterbrochen",
+  );
+  const retry = importer.getByRole("button", {
+    name: "Import erneut bestätigen",
+    exact: true,
+  });
+  await expect(retry).toBeEnabled();
+  await expect(submit).toBeDisabled();
+  expect((await (await page.request.get("/api/state")).json()).guests).toEqual(
+    before.guests,
+  );
+  expect(
+    await page.evaluate(() => {
+      const event = new Event("beforeunload", { cancelable: true });
+      window.dispatchEvent(event);
+      return event.defaultPrevented;
+    }),
+  ).toBe(false);
+  hold();
+  await retry.click();
+  await captured;
+  release();
+  await expect(importer).toHaveCount(0);
+  const after = await (await page.request.get("/api/state")).json();
+  expect(after.guests.length).toBe(before.guests.length + 2);
+  expect(batches).toHaveLength(2);
+  expect(batches[1]).toEqual(batches[0]);
+});
+
+test("an import with a lost success response keeps its selection during refresh and confirms without duplicate guests", async ({
+  page,
+}, testInfo) => {
+  await login(page);
+  await section(page, "Gäste");
+  const before = await (await page.request.get("/api/state")).json();
+  await page.setViewportSize({ width: 320, height: 900 });
+  await page
+    .getByRole("button", { name: "Excel importieren", exact: true })
+    .click();
+  const importer = page.getByRole("dialog", {
+    name: "Gästeliste aus Excel übernehmen",
+    exact: true,
+  });
+  await page.getByLabel("Excel-Gästeliste auswählen").setInputFiles({
+    name: "lost-response.xlsx",
+    mimeType:
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    buffer: guestWorkbook([
+      ["Name", "Anz."],
+      ["Lost Response Family", 2],
+      ["Lost Response Person", 1],
+    ]),
+  });
+  let release!: () => void;
+  let committed!: () => void;
+  const stored = new Promise<void>((resolve) => {
+    committed = resolve;
+  });
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const batches: unknown[] = [];
+  await page.route("**/api/guests/import", async (route) => {
+    batches.push(route.request().postDataJSON());
+    if (batches.length > 1) return route.continue();
+    const actual = await route.fetch();
+    expect(actual.ok()).toBeTruthy();
+    committed();
+    await gate;
+    await route.fulfill({
+      status: 503,
+      json: { error: "Bestätigung verloren" },
+    });
+  });
+  await importer
+    .getByRole("button", {
+      name: "2 Einträge mit 3 Personen importieren",
+      exact: true,
+    })
+    .click();
+  await stored;
+  try {
+    const fresh = page.waitForResponse(
+      (value) => value.url().endsWith("/api/state") && value.ok(),
+    );
+    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+    await (await fresh).finished();
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+        ),
+    );
+    await expect(
+      importer.getByRole("checkbox", {
+        name: "Zeile 2: Lost Response Family übernehmen",
+        exact: true,
+      }),
+    ).toBeChecked();
+    await expect(
+      importer.getByRole("button", {
+        name: "Gäste werden gespeichert …",
+        exact: true,
+      }),
+    ).toBeDisabled();
+  } finally {
+    release();
+  }
+  await expect(
+    importer.getByRole("region", { name: "Import nicht bestätigt" }),
+  ).toBeFocused();
+  await expect(
+    importer.getByRole("button", {
+      name: "Import erneut bestätigen",
+      exact: true,
+    }),
+  ).toBeInViewport();
+  await expect(importer.getByRole("alert")).toContainText(
+    "Bestätigung verloren",
+  );
+  expect(
+    (await (await page.request.get("/api/state")).json()).guests.length,
+  ).toBe(before.guests.length + 2);
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+  await importer.screenshot({
+    path: testInfo.outputPath("uncertain-import-320.png"),
+  });
+  await importer
+    .getByRole("button", { name: "Import erneut bestätigen", exact: true })
+    .click();
+  await expect(importer).toHaveCount(0);
+  await expect(
+    page.getByText(
+      "Import geprüft: 2 bereits vorhandene Einträge ausgelassen.",
+      { exact: true },
+    ),
+  ).toBeVisible();
+  const after = await (await page.request.get("/api/state")).json();
+  expect(after.guests.length).toBe(before.guests.length + 2);
+  expect(batches).toHaveLength(2);
+  expect(batches[1]).toEqual(batches[0]);
+});
+
 test("navigation links preserve the current workspace and browser back returns to the previous section", async ({
   page,
 }) => {

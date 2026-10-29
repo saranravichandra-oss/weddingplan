@@ -221,6 +221,7 @@ function PlanningApp({
   );
   const currentOfferLayout = offerLayout || (smallScreen ? "cards" : "table");
   const [guestImport, setGuestImport] = useState(false);
+  const [guestImportSaving, setGuestImportSaving] = useState(false);
   useEffect(() => {
     const query = matchMedia("(max-width: 700px)");
     const update = () => setSmallScreen(query.matches);
@@ -1654,11 +1655,14 @@ function PlanningApp({
         <Dialog
           title="Gästeliste aus Excel übernehmen"
           wide
-          onClose={() => setGuestImport(false)}
+          onClose={() => {
+            if (!guestImportSaving) setGuestImport(false);
+          }}
         >
           <GuestImport
             guests={state.guests}
             events={state.events}
+            onSavingChange={setGuestImportSaving}
             onSaved={(message) => {
               setGuestImport(false);
               void refresh();
