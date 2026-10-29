@@ -6,6 +6,8 @@ Die Atelier-Oberfläche bietet verlinkbare Bereiche, eine Kartenübersicht und d
 
 Angebotsentwürfe werden im aktuellen Browser-Tab pro Konto wiederaufgenommen. Die unbestätigten Feldkorrekturen stehen bis zur Übernahme nur in diesem Tab; hochgeladene Originale und Auswertungen liegen bereits im gemeinsamen privaten Dokumentbereich. Bei gleichzeitigen Änderungen werden unterschiedliche Felder zusammengeführt und konkurrierende Angaben bewusst ausgewählt. Unterschiedliche Originale werden als getrennte Fassungen behandelt. Nach einer Zusammenführung ist eine erneute Prüfung nötig.
 
+Auch Gäste, Aufgaben und andere Planungsformulare bieten bei parallelen Änderungen eine gemeinsame Prüfung an. Gästerückmeldungen werden je Feier zusammengeführt. Gleiche Angaben mit verschiedenen Werten benötigen eine Auswahl; die Zusammenführung allein speichert nichts. Ein inzwischen gelöschter Eintrag wird nicht automatisch wieder angelegt. Ungespeicherte Formulare warnen vor versehentlichem Schließen oder Neuladen.
+
 ## Online gemeinsam planen
 
 Die Cloud-Fassung verwendet eine stateless Vercel-Funktion als Proxy, eine Supabase Edge Function mit eigener Sitzungsprüfung, Postgres und einen privaten Storage-Bucket. Originale und Auswertungen werden dauerhaft im gemeinsamen Speicher abgelegt. Das Lesen von PDF-Text und die deutsche/englische OCR erfolgen im Browser mit selbst gehosteten Sprachdateien. Der Browser muss während der Auswertung geöffnet bleiben. Bei einem Abbruch kann die Auswertung fortgesetzt werden. Es gibt keine externe KI-Analyse und keinen benötigten OpenAI-Schlüssel.
