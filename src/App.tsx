@@ -36,6 +36,7 @@ import {
 import type { Icon } from "@phosphor-icons/react";
 import {
   api,
+  apiBlob,
   ApiError,
   currentSessionVersion,
   deleteRecord,
@@ -49,6 +50,7 @@ import { dateText, money, price } from "./data";
 import type {
   AppState,
   Cost,
+  Document as PlanningDocument,
   Kind,
   Offer,
   Section,
@@ -179,6 +181,43 @@ function PlanningApp({
       setNoticeState(text ? { text, tone } : null),
     [],
   );
+  const [downloadBusy, setDownloadBusy] = useState("");
+  async function downloadOriginal(doc: PlanningDocument) {
+    if (downloadBusy) return;
+    const startedSession = currentSessionVersion();
+    setDownloadBusy(doc.id);
+    notify("Original wird geladen …", "info");
+    try {
+      const file = await apiBlob(
+        "/documents/" + encodeURIComponent(doc.id) + "/file?download=1",
+      );
+      if (startedSession !== currentSessionVersion()) return;
+      if (file.size !== doc.size)
+        throw new Error(
+          "Das Original ist unvollständig angekommen. Bitte erneut herunterladen.",
+        );
+      const url = URL.createObjectURL(file);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = doc.name;
+      link.hidden = true;
+      document.body.append(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      notify("Original bereit. Bitte prüft die Datei in euren Downloads.");
+    } catch (error) {
+      if (startedSession === currentSessionVersion())
+        notify(
+          error instanceof TypeError
+            ? "Das Original konnte gerade nicht geladen werden. Bitte erneut herunterladen."
+            : (error as Error).message,
+          "error",
+        );
+    } finally {
+      setDownloadBusy("");
+    }
+  }
   const [editor, setEditor] = useState<{
     kind: Exclude<Kind, "offers">;
     record?: Record<string, unknown> & Partial<Stored>;
@@ -1289,12 +1328,15 @@ function PlanningApp({
           subtitle="Neue Auswertungen erscheinen nach wenigen Sekunden automatisch."
         />
         {state.documents.map((doc) => (
-          <div className="document-row" key={doc.id}>
+          <div className="document-row" key={doc.id} data-document-id={doc.id}>
             <FileText size={25} />
             <div>
               <strong>{doc.name}</strong>
-              <p>
-                {Math.ceil(doc.size / 1024)} KB · {doc.progress}
+              <p role={downloadBusy === doc.id ? "status" : undefined}>
+                {Math.ceil(doc.size / 1024)} KB ·{" "}
+                {downloadBusy === doc.id
+                  ? "Original wird geladen …"
+                  : doc.progress}
               </p>
               {doc.error && <p className="field-error">{doc.error}</p>}
             </div>
@@ -1317,16 +1359,19 @@ function PlanningApp({
               >
                 Prüfen
               </Button>
-              <a
+              <button
                 className="icon-button"
                 aria-label={`${doc.name} herunterladen`}
-                href={`/api/documents/${doc.id}/file?download=1`}
+                aria-busy={downloadBusy === doc.id}
+                disabled={!!downloadBusy}
+                onClick={() => void downloadOriginal(doc)}
               >
                 <DownloadSimple size={20} />
-              </a>
+              </button>
               <button
                 className="icon-button"
                 aria-label={`${doc.name} löschen`}
+                disabled={downloadBusy === doc.id}
                 onClick={async () => {
                   if (
                     !window.confirm(

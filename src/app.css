@@ -790,13 +790,34 @@
     padding: 25px;
   }
   .document-row {
-    align-items: flex-start;
+    display: grid;
+    grid-template-columns: 26px minmax(0, 1fr);
+    gap: 10px 12px;
+    align-items: start;
+  }
+  .document-row > svg {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .document-row > div:not(.row-actions) {
+    grid-column: 2;
+    grid-row: 1;
   }
   .document-row > .row-actions {
-    width: 100%;
-    justify-content: flex-end;
+    grid-column: 2;
+    grid-row: 3;
+    width: auto;
+    margin-left: 0;
+    justify-content: flex-start;
+  }
+  .document-row .row-actions .icon-button {
+    min-width: 44px;
+    min-height: 44px;
   }
   .document-row .badge {
+    grid-column: 2;
+    grid-row: 2;
+    justify-self: start;
     font-size: 10px;
   }
   .scenario .section-heading {

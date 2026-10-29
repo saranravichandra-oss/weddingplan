@@ -14,10 +14,11 @@ export class ApiError extends Error {
     super(message);
   }
 }
-export async function api<T>(
+async function request(
   path: string,
   options: RequestInit = {},
-): Promise<T> {
+  includeCsrf = true,
+): Promise<Response> {
   const startedSession = sessionVersion;
   const form = options.body instanceof FormData;
   const response = await fetch("/api" + path, {
@@ -25,12 +26,12 @@ export async function api<T>(
     credentials: "same-origin",
     headers: {
       ...(!form && options.body ? { "Content-Type": "application/json" } : {}),
-      ...(csrf ? { "X-CSRF-Token": csrf } : {}),
+      ...(includeCsrf && csrf ? { "X-CSRF-Token": csrf } : {}),
       ...options.headers,
     },
   });
-  const data = await response.json().catch(() => ({}));
   if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
     if (
       response.status === 401 &&
       !path.startsWith("/auth/") &&
@@ -50,7 +51,18 @@ export async function api<T>(
       response.status,
     );
   }
-  return data as T;
+  return response;
+}
+export async function api<T>(
+  path: string,
+  options: RequestInit = {},
+): Promise<T> {
+  const response = await request(path, options);
+  return response.json().catch(() => ({}));
+}
+export async function apiBlob(path: string): Promise<Blob> {
+  // A private file may redirect to signed storage. Do not forward CSRF headers.
+  return (await request(path, {}, false)).blob();
 }
 export const json = (value: unknown) => JSON.stringify(value);
 export const getState = () => api<AppState>("/state");

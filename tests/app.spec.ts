@@ -88,6 +88,13 @@ test("all planning areas work on desktop and mobile with no runtime errors or ho
   test.setTimeout(90000);
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
+  page.on("console", (message) => {
+    if (
+      message.type() === "error" &&
+      message.text().includes("Content Security Policy")
+    )
+      errors.push(message.text());
+  });
   await login(page);
   for (const width of [1440, 768, 390, 320]) {
     await page.setViewportSize({ width, height: 950 });
@@ -327,10 +334,8 @@ test("retrying document recognition locks its source and late proposals require 
     await route.fulfill({ json: { ok: true } });
   });
   await section(page, "Dokumente");
-  // Text originals may share their display name; identify the actual private file URL.
-  const documentRow = page.locator(".document-row").filter({
-    has: page.locator(`a[href="/api/documents/${id}/file?download=1"]`),
-  });
+  // Text originals may share their display name; identify the document row by ID.
+  const documentRow = page.locator(`.document-row[data-document-id="${id}"]`);
   await expect(documentRow).toBeVisible();
   await documentRow
     .getByRole("button", { name: "Prüfen", exact: true })
@@ -1717,6 +1722,187 @@ test("per-person quotes retain their pricing unit and never invent a total from 
   expect(offer.price).toBeNull();
   expect(offer.pricingNotes).toContain("Preis pro Person");
   expect(offer.evidence.pricingNotes[0].page).toBe(1);
+});
+
+test("original downloads stay recoverable, preserve exact bytes and discard a late response after sign out", async ({
+  page,
+}, testInfo) => {
+  let originalBytes = Buffer.alloc(0);
+  let storageRequests = 0;
+  let storageHeaders: Record<string, unknown> = {};
+  const { createServer } = await import("node:http");
+  const storage = createServer((request, response) => {
+    storageRequests++;
+    storageHeaders = request.headers;
+    response.writeHead(200, {
+      "Content-Type": "text/plain",
+      "Access-Control-Allow-Origin": "*",
+    });
+    response.end(originalBytes);
+  });
+  await new Promise<void>((resolve) => storage.listen(0, "127.0.0.1", resolve));
+  const address = storage.address();
+  if (!address || typeof address === "string")
+    throw new Error("Synthetic storage did not start");
+  const storageOrigin = "http://127.0.0.1:" + address.port;
+  // The isolated browser needs loopback permission for the local cross-origin fixture.
+  await page.context().grantPermissions(["local-network-access"], {
+    origin: "http://127.0.0.1:5180",
+  });
+  // Only the test HTML permits this local synthetic storage origin.
+  await page.route(
+    (url) => url.origin === "http://127.0.0.1:5180" && url.pathname === "/",
+    async (route) => {
+      const response = await route.fetch();
+      const headers = response.headers();
+      headers["content-security-policy"] = headers[
+        "content-security-policy"
+      ].replace("connect-src 'self'", "connect-src 'self' " + storageOrigin);
+      await route.fulfill({ response, headers });
+    },
+  );
+  try {
+    await login(page);
+    const auth = await (await page.request.get("/api/auth/me")).json();
+    const originalText =
+      "Anbieter: Nur Teststudio\nGesamtpreis: 720,00 EUR brutto\nLeistung: Grüße, Foto & Film – ausschließlich synthetisch.";
+    const created = await page.request.post("/api/documents/text", {
+      headers: { "X-CSRF-Token": auth.csrf },
+      data: { name: "Synthetisches Original Grüße", text: originalText },
+    });
+    expect(created.ok()).toBeTruthy();
+    const { id } = await created.json();
+    await page.reload();
+    await section(page, "Dokumente");
+    await page.setViewportSize({ width: 320, height: 900 });
+    const filename = "Synthetisches Original Grüße.txt";
+    const control = page
+      .getByRole("button", { name: filename + " herunterladen", exact: true })
+      .or(
+        page.getByRole("link", {
+          name: filename + " herunterladen",
+          exact: true,
+        }),
+      );
+    let attempts = 0;
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let heldResponse: unknown;
+    const storageUrl = storageOrigin + "/original/" + id;
+    await page.route(
+      "**/api/documents/" + id + "/file?download=1",
+      async (route) => {
+        attempts++;
+        expect(route.request().headers()["x-csrf-token"]).toBeUndefined();
+        if (attempts === 1)
+          return route.fulfill({
+            status: 503,
+            json: { error: "Original vorübergehend nicht erreichbar" },
+          });
+        if (attempts === 3)
+          return route.fulfill({
+            status: 200,
+            contentType: "text/plain",
+            body: "abgeschnitten",
+          });
+        if (attempts === 2) {
+          const response = await route.fetch();
+          originalBytes = await response.body();
+          return route.fulfill({
+            status: 307,
+            headers: { Location: storageUrl },
+          });
+        }
+        if (attempts === 4) return route.abort("failed");
+        if (attempts === 5) {
+          const response = await route.fetch();
+          heldResponse = response;
+          await held;
+          return route.fulfill({ response });
+        }
+        await route.continue();
+      },
+    );
+    await control.click();
+    await expect(page).toHaveURL(/bereich=dokumente/);
+    await expect(page.getByRole("alert")).toContainText(
+      "Original vorübergehend nicht erreichbar",
+    );
+    const documentRow = page.locator(`.document-row[data-document-id="${id}"]`);
+    const nameBox = await documentRow.locator("strong").boundingBox();
+    const actionsBox = await documentRow.locator(".row-actions").boundingBox();
+    expect(nameBox!.width).toBeGreaterThanOrEqual(160);
+    expect(actionsBox!.y).toBeGreaterThanOrEqual(nameBox!.y + nameBox!.height);
+    const downloadBox = await control.boundingBox();
+    expect(downloadBox!.width).toBeGreaterThanOrEqual(44);
+    expect(downloadBox!.height).toBeGreaterThanOrEqual(44);
+    await page.screenshot({
+      path: testInfo.outputPath("original-download-error-320.png"),
+      fullPage: false,
+    });
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBeTruthy();
+    const downloading = page.waitForEvent("download", { timeout: 7000 });
+    await control.click();
+    const downloaded = await downloading;
+    expect(downloaded.suggestedFilename()).toBe(filename);
+    const { readFile } = await import("node:fs/promises");
+    expect(await readFile((await downloaded.path())!, "utf8")).toBe(
+      originalText,
+    );
+    expect(storageRequests).toBe(1);
+    expect(storageHeaders["x-csrf-token"]).toBeUndefined();
+    expect(storageHeaders.cookie).toBeUndefined();
+    await expect(page).toHaveURL(/bereich=dokumente/);
+    const unexpected: string[] = [];
+    page.on("download", (d) => unexpected.push(d.suggestedFilename()));
+    await control.click();
+    await expect(page.getByRole("alert")).toContainText("unvollständig");
+    expect(unexpected).toEqual([]);
+    await control.click();
+    await expect(page.getByRole("alert")).toContainText(
+      "Bitte erneut herunterladen",
+    );
+    expect(unexpected).toEqual([]);
+    await control.click();
+    await expect(control).toBeDisabled();
+    await expect(control).toHaveAttribute("aria-busy", "true");
+    await expect(
+      page
+        .getByRole("status")
+        .filter({ hasText: "Original wird geladen" })
+        .first(),
+    ).toBeVisible();
+    await expect.poll(() => !!heldResponse).toBeTruthy();
+    await page.setViewportSize({ width: 1440, height: 950 });
+    const finished = page.waitForResponse((r) =>
+      r.url().includes("/documents/" + id + "/file?download=1"),
+    );
+    await page
+      .getByRole("button", { name: "Abmelden", exact: true })
+      .first()
+      .click();
+    await expect(
+      page.getByRole("button", { name: "Anmelden", exact: true }),
+    ).toBeVisible();
+    release();
+    await (await finished).finished();
+    await page.evaluate(
+      () =>
+        new Promise((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(resolve)),
+        ),
+    );
+    expect(unexpected).toEqual([]);
+    expect(attempts).toBe(5);
+  } finally {
+    await new Promise<void>((resolve) => storage.close(() => resolve()));
+  }
 });
 
 test("a failed planning export stays in the app and a retry downloads the complete private JSON", async ({
