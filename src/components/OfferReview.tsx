@@ -78,6 +78,10 @@ export default function OfferReview({
   const [text, setText] = useState(cached?.text || "");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [retrying, setRetrying] = useState(false);
+  const sourceLocked = busy || retrying;
+  const analysisRun = useRef(0);
+  const [analysisNotice, setAnalysisNotice] = useState(false);
   const [corrected, setCorrected] = useState<string[]>(
     cached?.corrected || offer?.manualFields || [],
   );
@@ -174,6 +178,8 @@ export default function OfferReview({
   }, [documentId, doc?.status]);
   useEffect(() => {
     if (!doc?.analysis || applied === documentId) return;
+    if (confirmationRef.current?.checked) setAnalysisNotice(true);
+    if (confirmationRef.current) confirmationRef.current.checked = false;
     if (!offer || offer.documentId !== documentId) {
       setDraft((previous) => ({
         ...emptyOffer,
@@ -219,16 +225,25 @@ export default function OfferReview({
       previous.includes(key) ? previous : [...previous, key],
     );
   }
+  function resetConfirmation() {
+    if (confirmationRef.current) confirmationRef.current.checked = false;
+    setAnalysisNotice(false);
+  }
   async function upload(file?: File) {
-    if (!file || busy) return;
+    if (!file || sourceLocked) return;
     if (file.size > 15 * 1024 * 1024) {
       setError("Maximal 15 MB pro Datei.");
       return;
     }
     setError("");
     setBusy(true);
+    resetConfirmation();
+    const run = ++analysisRun.current;
+    setLocalProgress("");
     try {
-      const response = await uploadDocument(file, setLocalProgress);
+      const response = await uploadDocument(file, (message) => {
+        if (analysisRun.current === run) setLocalProgress(message);
+      });
       setDoc(null);
       setDirty(true);
       setCorrected([]);
@@ -270,7 +285,11 @@ export default function OfferReview({
         )
       : null;
   function adopt(next: Partial<Offer>, baseline?: Offer) {
-    if (next.documentId !== documentId) setDoc(null);
+    if (next.documentId !== documentId) {
+      analysisRun.current++;
+      setLocalProgress("");
+      setDoc(null);
+    }
     setDraft(next);
     setBaseOffer(baseline);
     setCorrected(next.manualFields || []);
@@ -279,7 +298,7 @@ export default function OfferReview({
     setDirty(true);
     setMergeChoices({});
     setError("");
-    if (confirmationRef.current) confirmationRef.current.checked = false;
+    resetConfirmation();
   }
   const conflictValue = (key: keyof Offer, value: unknown) =>
     key === "providerId"
@@ -376,8 +395,11 @@ export default function OfferReview({
           </span>
           <button
             type="button"
-            disabled={busy}
+            disabled={sourceLocked}
             onClick={() => {
+              resetConfirmation();
+              analysisRun.current++;
+              setLocalProgress("");
               submitted.current = true;
               forgetOfferDraft(draftKey);
               const original = currentOffer || offer;
@@ -451,7 +473,7 @@ export default function OfferReview({
           <div className="offer-conflict-actions">
             {!differentSource && (
               <Button
-                disabled={busy || merge.unresolved}
+                disabled={sourceLocked || merge.unresolved}
                 onClick={() => adopt(merge.merged, currentOffer)}
               >
                 Änderungen zusammenführen
@@ -459,7 +481,7 @@ export default function OfferReview({
             )}
             <Button
               secondary
-              disabled={busy}
+              disabled={sourceLocked}
               onClick={() => adopt(currentOffer, currentOffer)}
             >
               Gemeinsame Fassung verwenden
@@ -467,7 +489,7 @@ export default function OfferReview({
             {differentSource && (
               <Button
                 secondary
-                disabled={busy}
+                disabled={sourceLocked}
                 onClick={() => {
                   const next = {
                     ...draft,
@@ -503,14 +525,14 @@ export default function OfferReview({
           <div className="segmented">
             <button
               aria-pressed={mode === "file"}
-              disabled={busy}
+              disabled={sourceLocked}
               onClick={() => setMode("file")}
             >
               Datei hochladen
             </button>
             <button
               aria-pressed={mode === "text"}
-              disabled={busy}
+              disabled={sourceLocked}
               onClick={() => setMode("text")}
             >
               Text einfügen
@@ -536,7 +558,7 @@ export default function OfferReview({
                 PDF, PNG, JPG, WebP, UTF-8-TXT · max. 15 MB · PDF bis 20 Seiten
               </small>
               <input
-                disabled={busy}
+                disabled={sourceLocked}
                 type="file"
                 aria-label="Angebotsdatei auswählen"
                 accept=".pdf,.png,.jpg,.jpeg,.webp,.txt"
@@ -553,7 +575,7 @@ export default function OfferReview({
                 Angebotstext
                 <textarea
                   rows={9}
-                  disabled={busy}
+                  disabled={sourceLocked}
                   value={text}
                   maxLength={200000}
                   onChange={(e) => {
@@ -564,8 +586,11 @@ export default function OfferReview({
               </label>
               <Button
                 secondary
-                disabled={busy || !text.trim()}
+                disabled={sourceLocked || !text.trim()}
                 onClick={async () => {
+                  resetConfirmation();
+                  analysisRun.current++;
+                  setLocalProgress("");
                   setBusy(true);
                   setError("");
                   try {
@@ -612,14 +637,21 @@ export default function OfferReview({
                   {doc.error && <ErrorMessage message={doc.error} />}
                   <Button
                     secondary
-                    disabled={busy}
+                    disabled={sourceLocked}
                     onClick={async () => {
+                      if (sourceLocked) return;
+                      setRetrying(true);
+                      resetConfirmation();
+                      setError("");
+                      const id = documentId;
+                      const run = ++analysisRun.current;
+                      setLocalProgress("Auswertung wird neu gestartet …");
                       try {
-                        await api(`/documents/${documentId}/retry`, {
+                        await api(`/documents/${id}/retry`, {
                           method: "POST",
                         });
                         setDoc((previous) =>
-                          previous
+                          previous?.id === id
                             ? {
                                 ...previous,
                                 status: "running",
@@ -631,17 +663,25 @@ export default function OfferReview({
                         setApplied("");
                         if (cloudMode)
                           await analyzeDocument(
-                            documentId,
+                            id,
                             undefined,
                             doc.mime,
-                            setLocalProgress,
+                            (message) => {
+                              if (analysisRun.current === run)
+                                setLocalProgress(message);
+                            },
                           );
                       } catch (error) {
+                        setLocalProgress("");
                         setError((error as Error).message);
+                      } finally {
+                        setRetrying(false);
                       }
                     }}
                   >
-                    Auswertung erneut versuchen
+                    {retrying
+                      ? "Auswertung wird fortgesetzt …"
+                      : "Auswertung erneut versuchen"}
                   </Button>
                 </>
               )}
@@ -726,7 +766,14 @@ export default function OfferReview({
           className="review-form form-stack"
           onSubmit={async (e) => {
             e.preventDefault();
-            if (busy) return;
+            if (
+              sourceLocked ||
+              stale ||
+              (!!documentId && !doc) ||
+              doc?.status === "running" ||
+              doc?.status === "queued"
+            )
+              return;
             setError("");
             setBusy(true);
             onSavingChange(true);
@@ -948,12 +995,21 @@ export default function OfferReview({
               {area("decision", "Eure Einschätzung & Entscheidung")}
             </div>
           </details>
+          {analysisNotice && (
+            <p className="inline-note" role="status">
+              Die neue Auswertung wurde übernommen. Bitte prüfe die aktuelle
+              Fassung und bestätige sie erneut.
+            </p>
+          )}
           <label className="confirmation">
             <input
               ref={confirmationRef}
               type="checkbox"
               required
               disabled={busy}
+              onChange={(event) => {
+                if (event.currentTarget.checked) setAnalysisNotice(false);
+              }}
             />
             <span>
               Ich habe Original und Angaben geprüft. Fehlendes bleibt offen.
@@ -963,7 +1019,7 @@ export default function OfferReview({
           <Button
             type="submit"
             disabled={
-              busy ||
+              sourceLocked ||
               stale ||
               (!!documentId && !doc) ||
               doc?.status === "running" ||

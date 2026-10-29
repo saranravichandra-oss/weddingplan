@@ -162,6 +162,207 @@ test("text extraction proposes values with source evidence; confirmed unknown pr
     page.locator(".stat").filter({ hasText: "Bekannt beauftragt" }),
   ).toContainText("1.000");
 });
+test("retrying document recognition locks its source and late proposals require a fresh confirmation", async ({
+  page,
+}, testInfo) => {
+  await page.setViewportSize({ width: 390, height: 900 });
+  await login(page);
+  const auth = await (await page.request.get("/api/auth/me")).json();
+  const response = await page.request.post("/api/documents/text", {
+    headers: { "X-CSRF-Token": auth.csrf },
+    data: {
+      text: "Anbieter: Spätes Teststudio\nGesamtpreis: 850,00 EUR brutto\nTeam: 2 Fotografen\nLieferung: 8 Wochen",
+    },
+  });
+  expect(response.ok()).toBeTruthy();
+  const { id } = await response.json();
+  await expect
+    .poll(
+      async () =>
+        (await (await page.request.get(`/api/documents/${id}`)).json()).status,
+    )
+    .toBe("complete");
+  const original = await (
+    await page.request.get(`/api/documents/${id}`)
+  ).json();
+  let phase: "error" | "running" | "complete" = "error";
+  await page.route(`**/api/documents/${id}`, (route) =>
+    route.fulfill({
+      json:
+        phase === "complete"
+          ? original
+          : {
+              ...original,
+              status: phase,
+              error:
+                phase === "error"
+                  ? "Synthetischer Erkennungsfehler"
+                  : undefined,
+              progress:
+                phase === "error" ? "Manuell prüfen" : "Auswertung läuft",
+              analysis: null,
+            },
+    }),
+  );
+  let release!: () => void;
+  const waiting = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let retries = 0;
+  await page.route(`**/api/documents/${id}/retry`, async (route) => {
+    retries++;
+    if (retries === 1) {
+      await waiting;
+      return route.fulfill({
+        status: 503,
+        json: { error: "Synthetischer Neustartfehler" },
+      });
+    }
+    phase = "running";
+    await route.fulfill({ json: { ok: true } });
+  });
+  await section(page, "Dokumente");
+  // Text originals may share their display name; identify the actual private file URL.
+  const documentRow = page.locator(".document-row").filter({
+    has: page.locator(`a[href="/api/documents/${id}/file?download=1"]`),
+  });
+  await expect(documentRow).toBeVisible();
+  await documentRow
+    .getByRole("button", { name: "Prüfen", exact: true })
+    .click();
+  const dialog = page.getByRole("dialog");
+  await expect(
+    dialog.getByText("Synthetischer Erkennungsfehler", { exact: true }),
+  ).toBeVisible();
+  await dialog
+    .getByRole("textbox", { name: "Anbieter", exact: true })
+    .fill("Manuell geprüfter Anbieter");
+  await dialog
+    .getByRole("spinbutton", { name: "Gesamtpreis", exact: true })
+    .fill("900");
+  const confirmation = dialog.getByRole("checkbox", {
+    name: /Ich habe Original und Angaben geprüft/,
+  });
+  await confirmation.check();
+  try {
+    await dialog
+      .getByRole("button", { name: "Auswertung erneut versuchen", exact: true })
+      .click();
+    const pending = dialog.getByRole("button", {
+      name: "Auswertung wird fortgesetzt …",
+      exact: true,
+    });
+    await expect(pending).toBeDisabled();
+    await pending.evaluate((button: HTMLButtonElement) => button.click());
+    await expect(
+      dialog.getByLabel("Angebotsdatei auswählen", { exact: true }),
+    ).toBeDisabled();
+    await expect(
+      dialog.getByRole("button", { name: "Text einfügen", exact: true }),
+    ).toBeDisabled();
+    await expect(
+      dialog.getByRole("button", { name: "Entwurf verwerfen", exact: true }),
+    ).toBeDisabled();
+    await expect(
+      dialog.getByRole("button", {
+        name: "Bestätigt in den Vergleich übernehmen",
+        exact: true,
+      }),
+    ).toBeDisabled();
+    await expect(confirmation).not.toBeChecked();
+    await dialog
+      .getByRole("textbox", { name: "Begleitung / Aufnahmezeit", exact: true })
+      .fill("Manuell 10 Stunden");
+    expect(retries).toBe(1);
+  } finally {
+    release();
+  }
+  await expect(
+    dialog
+      .getByRole("alert")
+      .filter({ hasText: "Synthetischer Neustartfehler" }),
+  ).toBeVisible();
+  await expect(
+    dialog.getByRole("button", {
+      name: "Auswertung erneut versuchen",
+      exact: true,
+    }),
+  ).toBeEnabled();
+  await expect(
+    dialog.getByRole("textbox", { name: "Anbieter", exact: true }),
+  ).toHaveValue("Manuell geprüfter Anbieter");
+  await dialog
+    .getByRole("button", { name: "Auswertung erneut versuchen", exact: true })
+    .click();
+  await expect(
+    dialog.getByRole("button", {
+      name: "Bestätigt in den Vergleich übernehmen",
+      exact: true,
+    }),
+  ).toBeDisabled();
+  await confirmation.check();
+  phase = "complete";
+  await expect(
+    dialog.getByRole("textbox", { name: "Team", exact: true }),
+  ).toHaveValue("2 Fotografen");
+  await expect(confirmation).not.toBeChecked();
+  await expect(
+    dialog
+      .getByRole("status")
+      .filter({ hasText: "Die neue Auswertung wurde übernommen" }),
+  ).toBeVisible();
+  const notice = dialog
+    .getByRole("status")
+    .filter({ hasText: "Die neue Auswertung wurde übernommen" });
+  await notice.scrollIntoViewIfNeeded();
+  await page.screenshot({
+    path: testInfo.outputPath("analysis-refresh-390.png"),
+  });
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBeTruthy();
+  await expect(
+    dialog.getByRole("textbox", { name: "Anbieter", exact: true }),
+  ).toHaveValue("Manuell geprüfter Anbieter");
+  await expect(
+    dialog.getByRole("spinbutton", { name: "Gesamtpreis", exact: true }),
+  ).toHaveValue("900");
+  await expect(
+    dialog.getByRole("textbox", {
+      name: "Begleitung / Aufnahmezeit",
+      exact: true,
+    }),
+  ).toHaveValue("Manuell 10 Stunden");
+  expect(
+    (await (await page.request.get("/api/state")).json()).offers.some(
+      (offer: { name: string }) => offer.name === "Manuell geprüfter Anbieter",
+    ),
+  ).toBe(false);
+  await confirmation.check();
+  await dialog
+    .getByRole("button", {
+      name: "Bestätigt in den Vergleich übernehmen",
+      exact: true,
+    })
+    .click();
+  await expect(dialog).toHaveCount(0);
+  const saved = (
+    await (await page.request.get("/api/state")).json()
+  ).offers.find(
+    (offer: { name: string }) => offer.name === "Manuell geprüfter Anbieter",
+  );
+  expect(saved.documentId).toBe(id);
+  expect(saved.price).toBe(900);
+  expect(saved.team).toBe("2 Fotografen");
+  expect(saved.hours).toBe("Manuell 10 Stunden");
+  expect(saved.manualFields).toEqual(
+    expect.arrayContaining(["name", "price", "hours"]),
+  );
+  expect(saved.evidence.price[0].quote).toContain("850,00 EUR");
+});
+
 test("catering text is reviewed with its stated total and separate scope on mobile", async ({
   page,
 }, testInfo) => {
