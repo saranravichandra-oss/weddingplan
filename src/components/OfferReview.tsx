@@ -914,9 +914,11 @@ export default function OfferReview({
                 disabled={busy}
                 onChange={(e) => set("currency", e.target.value)}
               >
-                {["Nicht angegeben", "EUR", "USD", "GBP"].map((value) => (
-                  <option key={value}>{value}</option>
-                ))}
+                {["Nicht angegeben", "EUR", "USD", "GBP", "CHF"].map(
+                  (value) => (
+                    <option key={value}>{value}</option>
+                  ),
+                )}
               </select>
               {source("currency")}
             </label>

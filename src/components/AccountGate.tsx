@@ -41,6 +41,7 @@ export default function AccountGate({
   useEffect(() => {
     void checkStatus();
   }, []);
+  if (cloudMode) return <CodeGate onLogin={onLogin} />;
   return (
     <div className="account-page">
       <div className="account-brand">
@@ -194,6 +195,74 @@ export default function AccountGate({
             {cloudMode
               ? "Private Cloudplanung für euch beide. Ihr könnt euch aus unterschiedlichen Netzwerken anmelden. Keine kostenpflichtige KI."
               : "Daten bleiben auf eurem Rechner. Keine kostenpflichtigen APIs. Für beide Geräte muss derselbe App-Server erreichbar sein."}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CodeGate({ onLogin }: { onLogin: (user: User) => void }) {
+  const [code, setCode] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  return (
+    <div className="account-page">
+      <div className="account-brand">
+        <Flower size={33} weight="thin" /> Wedding <em>SS</em>
+      </div>
+      <div className="panel account-panel">
+        <span className="eyebrow">EURE PRIVATE PLANUNG</span>
+        <h1>Euer gemeinsamer Plan.</h1>
+        <p>Gebt euren gemeinsamen sechsstelligen Zugangscode ein.</p>
+        <form
+          className="form-stack"
+          onSubmit={async (event) => {
+            event.preventDefault();
+            if (busy) return;
+            setBusy(true);
+            setError("");
+            try {
+              const result = await api<Auth>("/auth/code", {
+                method: "POST",
+                body: json({ code }),
+              });
+              setCsrf(result.csrf);
+              onLogin(result.user);
+            } catch (error) {
+              setError((error as Error).message);
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          <label>
+            Zugangscode
+            <input
+              type="password"
+              name="code"
+              inputMode="numeric"
+              pattern="[0-9]{6}"
+              minLength={6}
+              maxLength={6}
+              autoComplete="off"
+              required
+              value={code}
+              disabled={busy}
+              onChange={(event) =>
+                setCode(event.target.value.replace(/\D/g, ""))
+              }
+            />
+          </label>
+          <ErrorMessage message={error} />
+          <Button type="submit" disabled={busy}>
+            {busy ? "Wird geöffnet …" : "Planung öffnen"}
+          </Button>
+        </form>
+        <div className="account-note">
+          <LockKey size={17} />
+          <span>
+            Ein gemeinsamer Zugang für euch beide. Keine Registrierung nötig.
           </span>
         </div>
       </div>

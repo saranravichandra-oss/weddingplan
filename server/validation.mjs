@@ -61,7 +61,7 @@ export const schemas = {
     price: amount.default(null),
     pricingNotes: text.default(""),
     currency: z
-      .enum(["EUR", "USD", "GBP", "Nicht angegeben"])
+      .enum(["EUR", "USD", "GBP", "CHF", "Nicht angegeben"])
       .default("Nicht angegeben"),
     basis: z
       .enum(["Brutto", "Netto", "Nicht angegeben"])

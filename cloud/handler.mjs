@@ -356,7 +356,16 @@ export function createCloudHandler(db) {
       };
       if (path === "/auth/setup")
         fail(403, "Euer bestehender Zugang wurde übernommen. Bitte anmelden.");
-      if (path === "/auth/login" && method === "POST") {
+      if (["/auth/login", "/auth/code"].includes(path) && method === "POST") {
+        if (path === "/auth/code") {
+          await limit("code-ip:" + ip, 900000, 5);
+          const code = z
+            .string()
+            .regex(/^\d{6}$/)
+            .parse(data.code);
+          data.email = "planung@wedding-ss.invalid";
+          data.password = code;
+        }
         const login = loginSchema.parse(data);
         await limit("login:" + login.email, 900000, 20);
         const user = await query(
@@ -367,7 +376,13 @@ export function createCloudHandler(db) {
           user?.password ||
             "00000000000000000000000000000000:" + "0".repeat(128),
         );
-        if (!user || !valid) fail(401, "E-Mail oder Passwort stimmt nicht.");
+        if (!user || !valid)
+          fail(
+            401,
+            path === "/auth/code"
+              ? "Der Zugangscode stimmt nicht."
+              : "E-Mail oder Passwort stimmt nicht.",
+          );
         return await startSession(user);
       }
       if (path === "/auth/accept" && method === "POST") {
